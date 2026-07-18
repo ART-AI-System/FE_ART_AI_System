@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertOctagon } from 'lucide-react';
+import { AlertOctagon, Sparkles, Loader2, Copy, CheckCircle2, Award, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 import { gradeService } from '../../services/grade.service';
 import { reviewService } from '../../services/review.service';
@@ -25,6 +25,116 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
 
   const [declarations, setDeclarations] = useState<any[]>([]);
   const [loadingAi, setLoadingAi] = useState(false);
+
+  // AI Grading Suggestion State (Person A Feature)
+  const [loadingAiSuggestion, setLoadingAiSuggestion] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<any | null>(null);
+  const [aiSuggestionError, setAiSuggestionError] = useState<string>('');
+  const [showBreakdown, setShowBreakdown] = useState<boolean>(true);
+
+  // AI Audit States (Person B Feature)
+  const [aiAuditResult, setAiAuditResult] = useState<any>(null);
+  const [loadingAudit, setLoadingAudit] = useState<boolean>(false);
+  const [visibleAnswers, setVisibleAnswers] = useState<Record<number, boolean>>({});
+
+  // AI Holistic Synthesis States (Person A & B Linkage)
+  const [synthesisResult, setSynthesisResult] = useState<any | null>(null);
+  const [loadingSynthesis, setLoadingSynthesis] = useState<boolean>(false);
+
+  // Panel Resizing State
+  const [panelWidth, setPanelWidth] = useState<number>(460);
+  const [isDraggingPanel, setIsDraggingPanel] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isDraggingPanel) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = window.innerWidth - e.clientX;
+      setPanelWidth(Math.max(380, Math.min(window.innerWidth * 0.7, newWidth)));
+    };
+    const handleMouseUp = () => {
+      setIsDraggingPanel(false);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingPanel]);
+
+  const handleRunSynthesis = async () => {
+    if (!submissionId) return;
+    setLoadingSynthesis(true);
+    setAiSuggestionError('');
+    try {
+      const res: any = await axiosClient.post(`/submissions/${submissionId}/ai-holistic-synthesis`, {
+        gradingResult: aiSuggestion,
+        auditResult: aiAuditResult
+      });
+      const data = (res as any)?.data?.result || (res as any)?.result || (res as any)?.data || res;
+      setSynthesisResult(data);
+      if (data.gradingBreakdown) {
+        setAiSuggestion({
+          suggestedScore: data.rawRubricScore,
+          maxScore: 10,
+          rubricBreakdown: data.gradingBreakdown,
+          suggestedFeedback: data.suggestedFeedback || data.synergyAnalysis,
+          summary: data.summaryAnalysis || 'Comprehensive analysis'
+        });
+      }
+      if (data.vivaQuestions) {
+        setAiAuditResult({
+          consistencyScore: data.consistencyScore,
+          status: data.auditStatus,
+          summaryAnalysis: data.summaryAnalysis,
+          redFlags: data.redFlags || [],
+          vivaQuestions: data.vivaQuestions
+        });
+      }
+    } catch (err: any) {
+      setAiSuggestionError(err?.response?.data?.message || 'Could not run 360° AI Copilot.');
+      console.error('Failed to run AI Holistic Synthesis', err);
+    } finally {
+      setLoadingSynthesis(false);
+    }
+  };
+
+  // Aliases for seamless unification
+  const handleFetchAiSuggestion = handleRunSynthesis;
+  const handleRunAiAudit = handleRunSynthesis;
+
+  const handleApplySynthesis = (syn: any) => {
+    if (!syn) return;
+    const recScore = typeof syn.holisticRecommendedScore === 'number' ? syn.holisticRecommendedScore : syn.rawRubricScore || 8;
+    const ratio = recScore / 10;
+    setAiReflectionScore(Number((3 * ratio).toFixed(1)));
+    setDecompositionScore(Number((2 * ratio).toFixed(1)));
+    setPatternRecognitionScore(Number((1.5 * ratio).toFixed(1)));
+    setAbstractionScore(Number((1.5 * ratio).toFixed(1)));
+    setAlgorithmicThinkingScore(Number((2 * ratio).toFixed(1)));
+    
+    // Combine feedback cleanly
+    const feedbackParts = [];
+    if (syn.synergyAnalysis) {
+      feedbackParts.push(`[Đánh giá tổng hợp AI 360°]\n${syn.synergyAnalysis}`);
+    } else if (syn.suggestedFeedback) {
+      feedbackParts.push(`[Nhận xét Kỹ thuật]\n${syn.suggestedFeedback}`);
+    }
+    if (syn.actionableDefensePlan && syn.actionableDefensePlan.length > 0) {
+      feedbackParts.push(`\n[Vấn đáp Kiểm chứng & Chấm điểm có điều kiện]\n` + syn.actionableDefensePlan.map((item: any) => `• Q${item.linkedVivaQuestionNumber} (${item.rubricCriteria}): ${item.lecturerAdvice}`).join('\n'));
+    }
+    setFeedback(feedbackParts.join('\n'));
+
+    if (syn.auditStatus === 'RED') {
+      setReviewStatus('flagged');
+    } else if (syn.auditStatus === 'YELLOW') {
+      setReviewStatus('needs_revision');
+    } else {
+      setReviewStatus('reviewed');
+    }
+  };
+
+  const handleApplyAiSuggestion = () => handleApplySynthesis(synthesisResult || aiSuggestion);
 
   const totalScore = (aiReflectionScore + decompositionScore + patternRecognitionScore + abstractionScore + algorithmicThinkingScore).toFixed(1);
 
@@ -88,7 +198,19 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
   const discrepancyText = aiEvaluation?.discrepancies || 'System detected high AI signatures that do not align with student declarations.';
 
   return (
-    <div className="w-[450px] shrink-0 bg-white flex flex-col shadow-xl z-10 relative">
+    <div
+      style={{ width: `${panelWidth}px` }}
+      className="shrink-0 bg-white flex flex-col shadow-2xl z-10 relative transition-[width] duration-75 ease-out"
+    >
+      {/* Drag Handle Bar on Left Edge */}
+      <div
+        onMouseDown={(e) => { e.preventDefault(); setIsDraggingPanel(true); }}
+        className="absolute left-0 top-0 bottom-0 w-2.5 -ml-1 hover:w-3 bg-transparent hover:bg-indigo-300/70 cursor-ew-resize flex items-center justify-center z-30 transition-all select-none group"
+        title="Kéo trái/phải để thay đổi độ rộng khung chấm điểm"
+      >
+        <div className="w-1 h-16 bg-gray-300 group-hover:bg-indigo-600 rounded-full transition-colors shadow-sm" />
+      </div>
+
       {/* Tabs Header */}
       <div className="flex border-b border-gray-200">
         <button 
@@ -205,6 +327,83 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
             </div>
           </div>
           
+          {/* AI Audit & Viva Defense Section (Person B Feature - Streamlined) */}
+          <div className="mb-6 border-t border-gray-200 pt-6">
+            <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+              <div>
+                <h3 className="text-xs font-bold text-[#1B2559] uppercase tracking-wider">Thanh tra AI & Bộ Vấn đáp Viva</h3>
+                <p className="text-[11px] text-gray-400">Kiểm tra độ trung thực giữa lời khai và source code</p>
+              </div>
+              <button 
+                onClick={() => { setActiveTab('grade'); handleRunSynthesis(); }}
+                disabled={loadingSynthesis || !submissionId}
+                className="flex items-center gap-2 bg-gradient-to-r from-[#4318FF] via-purple-600 to-[#F26F21] text-white px-4 py-2.5 rounded-xl text-xs font-extrabold shadow-md hover:opacity-95 transition-all disabled:opacity-50"
+              >
+                ⚡ {loadingSynthesis ? 'Đang chạy đánh giá 360°...' : 'Chạy Đánh Giá AI 360° (1-Click)'}
+              </button>
+            </div>
+
+            {aiAuditResult && (
+              <div className="space-y-4">
+                {/* Status Badge */}
+                <div className={`p-4 rounded-2xl border ${
+                  aiAuditResult.status === 'RED' ? 'bg-red-50 border-red-200 text-red-800' :
+                  aiAuditResult.status === 'YELLOW' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
+                  'bg-green-50 border-green-200 text-green-800'
+                }`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="font-bold text-sm">Consistency Score: {aiAuditResult.consistencyScore}%</h4>
+                    <span className="text-xs font-extrabold px-2 py-1 rounded bg-white bg-opacity-50 uppercase">{aiAuditResult.status}</span>
+                  </div>
+                  <p className="text-xs">{aiAuditResult.summaryAnalysis}</p>
+                </div>
+
+                {/* Red Flags */}
+                {aiAuditResult.redFlags && aiAuditResult.redFlags.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+                    <h4 className="font-bold text-red-800 text-sm mb-2">🚩 Red Flags</h4>
+                    <ul className="list-disc pl-5 text-xs text-red-700 space-y-1">
+                      {aiAuditResult.redFlags.map((flag: string, idx: number) => (
+                        <li key={idx}>{flag}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Viva Defense Cards */}
+                {aiAuditResult.vivaQuestions && aiAuditResult.vivaQuestions.length > 0 && (
+                  <div>
+                    <h4 className="font-bold text-[#1B2559] text-sm mb-3 mt-6">Viva Defense Questions</h4>
+                    <div className="space-y-3">
+                      {aiAuditResult.vivaQuestions.map((q: any, idx: number) => (
+                        <div key={idx} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="text-xs font-bold text-gray-400">Q{q.questionNumber} • {q.purpose}</span>
+                            <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                              {q.targetFilePath}
+                            </span>
+                          </div>
+                          <p className="font-bold text-[#1B2559] text-sm mb-3">{q.questionText}</p>
+                          <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                            <button 
+                              onClick={() => setVisibleAnswers(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                              className="text-xs font-bold text-[#4318FF] mb-2 hover:underline"
+                            >
+                              {visibleAnswers[idx] ? 'Hide Expected Answer' : 'Show Expected Answer'}
+                            </button>
+                            {visibleAnswers[idx] && (
+                              <p className="text-xs text-gray-600 mt-2 border-t border-gray-200 pt-2">{q.expectedAnswer}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          
           {/* Lecturer Evaluation */}
           <div className="border-t border-gray-200 pt-6">
             <label className="block text-sm font-bold text-[#1B2559] mb-2">Review Status</label>
@@ -239,6 +438,144 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
         <div className="flex-1 overflow-y-auto p-6 bg-gray-50/30" style={{ scrollbarWidth: 'thin' }}>
           <div className="space-y-6">
             
+            {/* ── UNIFIED 360° AI SMART COPILOT DASHBOARD (Streamlined One-Click Experience) ── */}
+            <div className="bg-gradient-to-br from-indigo-900 via-[#1B2559] to-purple-900 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden transition-all">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="p-3 bg-gradient-to-br from-[#4318FF] to-[#F26F21] rounded-xl shadow-md shrink-0">
+                    <Sparkles className="w-5 h-5 text-white animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black tracking-wide text-white flex items-center gap-2">
+                      AI 360° SMART COPILOT
+                      <span className="text-[10px] bg-white/10 px-2.5 py-0.5 rounded-full font-mono text-indigo-200 border border-white/10">Rubric + Audit + Viva</span>
+                    </h4>
+                    <p className="text-xs text-indigo-200 mt-0.5 leading-relaxed">
+                      Chỉ cần 1 nút bấm: Tự động chấm theo Rubric, Thanh tra trung thực lời khai & Tạo bộ câu hỏi Vấn đáp liên kết
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {aiSuggestionError && (
+                <div className="mb-3 p-3 bg-red-500/20 text-red-200 border border-red-400/40 rounded-xl text-xs flex items-center">
+                  <AlertOctagon className="w-4 h-4 mr-2 shrink-0" /> {aiSuggestionError}
+                </div>
+              )}
+
+              {/* ONE MASTER RUN BUTTON */}
+              {!synthesisResult ? (
+                <button
+                  onClick={handleRunSynthesis}
+                  disabled={loadingSynthesis || !submissionId}
+                  className="w-full flex items-center justify-center px-4 py-3.5 bg-gradient-to-r from-[#4318FF] via-purple-600 to-[#F26F21] hover:opacity-95 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-all shadow-md hover:shadow-xl active:scale-[0.99] select-none uppercase tracking-wider"
+                >
+                  {loadingSynthesis ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Đang chạy Đánh giá Toàn diện 360° (Vui lòng đợi)...
+                    </>
+                  ) : (
+                    <>
+                      ⚡ Chạy Đánh Giá & Kiểm Định AI Toàn Diện (1-Click)
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="space-y-4 pt-2 border-t border-white/10 animate-fadeIn">
+                  {/* Status Badges Row */}
+                  <div className="grid grid-cols-3 gap-2.5">
+                    <div className="bg-white/10 p-2.5 rounded-xl border border-white/10 text-center">
+                      <span className="text-[10px] text-indigo-200 block uppercase font-semibold tracking-wider">Điểm Rubric Kỹ thuật</span>
+                      <span className="text-lg font-black text-white">{synthesisResult.rawRubricScore || aiSuggestion?.suggestedScore || 0} <span className="text-xs font-normal text-indigo-300">/ 10</span></span>
+                    </div>
+                    <div className={`p-2.5 rounded-xl border text-center ${
+                      synthesisResult.auditStatus === 'RED' ? 'bg-red-500/20 border-red-400/40 text-red-200' :
+                      synthesisResult.auditStatus === 'YELLOW' ? 'bg-yellow-500/20 border-yellow-400/40 text-yellow-200' :
+                      'bg-green-500/20 border-green-400/40 text-green-200'
+                    }`}>
+                      <span className="text-[10px] block uppercase font-semibold tracking-wider opacity-80">Độ Nhất Quán Lời Khai</span>
+                      <span className="text-lg font-black">{synthesisResult.consistencyScore || aiAuditResult?.consistencyScore || 100}% ({synthesisResult.auditStatus || 'GREEN'})</span>
+                    </div>
+                    <div className="bg-gradient-to-br from-[#F26F21] to-amber-600 p-2.5 rounded-xl shadow-inner text-center">
+                      <span className="text-[10px] text-amber-100 block uppercase font-semibold tracking-wider">Điểm Khuyến Nghị</span>
+                      <span className="text-lg font-black text-white">{synthesisResult.holisticRecommendedScore || aiSuggestion?.suggestedScore || 0} <span className="text-xs font-normal text-amber-200">/ 10</span></span>
+                    </div>
+                  </div>
+
+                  {/* Synergy Summary Text */}
+                  <div className="bg-white/5 p-3 rounded-xl border border-white/10 text-xs text-indigo-100 leading-relaxed">
+                    <span className="font-bold text-amber-300 block mb-1">💡 Phán quyết Tổng hợp:</span>
+                    {synthesisResult.synergyAnalysis || aiSuggestion?.summary || 'Đánh giá hoàn tất.'}
+                  </div>
+
+                  {/* ONE MASTER APPLY BUTTON */}
+                  <button
+                    onClick={() => handleApplySynthesis(synthesisResult)}
+                    className="w-full py-3 bg-white text-[#1B2559] hover:bg-indigo-50 text-xs font-black rounded-xl transition-all shadow-md flex items-center justify-center select-none tracking-wide"
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-2 text-green-600 shrink-0" /> ✅ Áp Dụng Toàn Bộ Điểm Số & Kế Hoạch Vấn Đáp Vào Khung Chấm
+                  </button>
+
+                  {/* SUB-TABS / ACCORDION FOR DETAILS */}
+                  <div className="border-t border-white/10 pt-3">
+                    <div className="flex space-x-2 border-b border-white/10 pb-2 mb-3 flex-wrap gap-1">
+                      <button
+                        onClick={() => setShowBreakdown(o => !o)}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                          showBreakdown ? 'bg-white/20 text-white' : 'text-indigo-200 hover:bg-white/10'
+                        }`}
+                      >
+                        📋 Tiêu chí Rubric ({aiSuggestion?.rubricBreakdown?.length || 0})
+                      </button>
+                      <button
+                        onClick={() => { setShowBreakdown(false); setActiveTab('ai'); }}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg text-indigo-200 hover:bg-white/10 transition-colors flex items-center gap-1"
+                      >
+                        🛡️ Xem Bộ Vấn đáp Viva & Lời khai ({aiAuditResult?.vivaQuestions?.length || 0})
+                      </button>
+                      <button
+                        onClick={handleRunSynthesis}
+                        disabled={loadingSynthesis}
+                        title="Chạy lại đánh giá AI"
+                        className="ml-auto text-xs font-bold px-2.5 py-1.5 rounded-lg text-indigo-200 hover:bg-white/10 transition-colors flex items-center gap-1"
+                      >
+                        🔄 Làm mới
+                      </button>
+                    </div>
+
+                    {showBreakdown && aiSuggestion?.rubricBreakdown && (
+                      <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
+                        {aiSuggestion.rubricBreakdown.map((item: any, idx: number) => (
+                          <div key={idx} className="bg-white/10 p-3 rounded-xl border border-white/10 text-xs">
+                            <div className="flex justify-between items-center mb-1 font-bold text-white">
+                              <span>{item.criteriaName}</span>
+                              <span className="text-amber-300 font-black">{item.score} / {item.maxScore}</span>
+                            </div>
+                            <p className="text-indigo-200 leading-relaxed mt-1">{item.comment}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {synthesisResult.actionableDefensePlan && synthesisResult.actionableDefensePlan.length > 0 && (
+                      <div className="mt-3 bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
+                        <h5 className="text-[11px] font-extrabold text-amber-300 uppercase tracking-wider">🎯 Kế hoạch Vấn đáp Kiểm chứng (Synergy Checklist)</h5>
+                        {synthesisResult.actionableDefensePlan.map((item: any, idx: number) => (
+                          <div key={idx} className="bg-white/5 p-2.5 rounded-lg border border-white/5 text-xs">
+                            <div className="flex justify-between items-center mb-1 font-bold text-white">
+                              <span>{item.rubricCriteria}</span>
+                              <span className="bg-[#F26F21] text-white px-2 py-0.5 rounded text-[10px]">Q{item.linkedVivaQuestionNumber}</span>
+                            </div>
+                            <p className="text-indigo-100 mt-1 leading-relaxed">{item.lecturerAdvice}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Score Input */}
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm text-center">
               <label className="block text-sm font-bold text-gray-500 mb-4">Final Score (0 - 10)</label>

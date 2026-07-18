@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Download, Sidebar, Folder, FolderOpen, FileCode2, FileText,
   File as FileIcon, ChevronDown, ChevronRight, LayoutTemplate,
-  AlertTriangle, Loader2
+  AlertTriangle, Loader2, Sparkles, AlertOctagon, CheckCircle, ShieldAlert, Bug, Lightbulb, Copy, X, ArrowRight,
+  Maximize2, Minimize2, GripHorizontal
 } from 'lucide-react';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import js from 'react-syntax-highlighter/dist/esm/languages/hljs/javascript';
@@ -170,6 +171,32 @@ const SubmissionFileViewer: React.FC<SubmissionFileViewerProps> = ({ submissionI
   const [fileLoading, setFileLoading] = useState(false);
   const [preview, setPreview] = useState<FilePreviewState>({ type: 'none' });
 
+  // ── AI Code Annotator States ────────────────────────────────────────────────
+  const [loadingAnnotations, setLoadingAnnotations] = useState(false);
+  const [annotationsResult, setAnnotationsResult] = useState<{ overallQuality: string; annotations: any[] } | null>(null);
+  const [annotationsError, setAnnotationsError] = useState('');
+  const [selectedLine, setSelectedLine] = useState<number | null>(null);
+  const [showAnnotationsDrawer, setShowAnnotationsDrawer] = useState(false);
+  const [auditPanelHeight, setAuditPanelHeight] = useState<number>(260);
+  const [isDraggingAudit, setIsDraggingAudit] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isDraggingAudit) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const newHeight = window.innerHeight - e.clientY - 60;
+      setAuditPanelHeight(Math.max(140, Math.min(window.innerHeight * 0.85, newHeight)));
+    };
+    const handleMouseUp = () => {
+      setIsDraggingAudit(false);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingAudit]);
+
   // ── Phase 1: Load tree via server API ──────────────────────────────────────
   useEffect(() => {
     if (!submissionId) return;
@@ -213,6 +240,10 @@ const SubmissionFileViewer: React.FC<SubmissionFileViewerProps> = ({ submissionI
     setActiveFileName(node.name);
     setFileLoading(true);
     setPreview({ type: 'none' });
+    setAnnotationsResult(null);
+    setSelectedLine(null);
+    setAnnotationsError('');
+    setShowAnnotationsDrawer(false);
 
     try {
       const res: any = await axiosClient.get(
@@ -258,6 +289,22 @@ const SubmissionFileViewer: React.FC<SubmissionFileViewerProps> = ({ submissionI
     }
   };
 
+  const handleAIAnnotateFile = async () => {
+    if (!submissionId || !activePath) return;
+    setLoadingAnnotations(true);
+    setAnnotationsError('');
+    try {
+      const res: any = await axiosClient.post(`/submissions/${submissionId}/ai-annotate-file`, { filePath: activePath });
+      const result = res.result ?? res.data?.result ?? res;
+      setAnnotationsResult(result);
+      setShowAnnotationsDrawer(true);
+    } catch (err: any) {
+      setAnnotationsError(err?.response?.data?.message || 'Could not analyze file with AI.');
+    } finally {
+      setLoadingAnnotations(false);
+    }
+  };
+
   // ── Helpers ────────────────────────────────────────────────────────────────
   const findFirstFile = (node: ServerTreeNode): ServerTreeNode | null => {
     if (node.type === 'file') return node;
@@ -293,6 +340,23 @@ const SubmissionFileViewer: React.FC<SubmissionFileViewerProps> = ({ submissionI
           )}
         </div>
         <div className="flex items-center space-x-2 shrink-0">
+          {preview.type === 'text' && (
+            <button
+              onClick={handleAIAnnotateFile}
+              disabled={loadingAnnotations || !activePath}
+              className="flex items-center px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 text-white text-xs font-extrabold rounded-lg transition-all shadow-sm"
+            >
+              {loadingAnnotations ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Auditing File...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5" /> {annotationsResult ? `AI Annotations (${annotationsResult.annotations?.length || 0})` : 'AI Code Annotate'}
+                </>
+              )}
+            </button>
+          )}
           <button
             onClick={handleDownloadOriginal}
             className="flex items-center px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-bold rounded hover:bg-gray-50 transition-colors shadow-sm"
@@ -363,23 +427,158 @@ const SubmissionFileViewer: React.FC<SubmissionFileViewerProps> = ({ submissionI
                 <div className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
               </div>
             ) : preview.type === 'text' ? (
-              <div className="flex-1 overflow-auto" style={{ scrollbarWidth: 'thin' }}>
-                <SyntaxHighlighter
-                  language={preview.language || 'text'}
-                  style={docco}
-                  customStyle={{
-                    margin: 0,
-                    padding: '1.5rem',
-                    fontSize: '13px',
-                    fontFamily: '"Fira Code", "Consolas", monospace',
-                    minHeight: '100%',
-                    background: '#ffffff',
-                  }}
-                  showLineNumbers
-                  wrapLines
-                >
-                  {preview.content || ''}
-                </SyntaxHighlighter>
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {annotationsError && (
+                  <div className="p-3 bg-red-50 text-red-600 border-b border-red-200 text-xs flex items-center shrink-0">
+                    <AlertOctagon className="w-4 h-4 mr-2 shrink-0" /> {annotationsError}
+                  </div>
+                )}
+
+                {/* Main Code View */}
+                <div className="flex-1 overflow-auto" style={{ scrollbarWidth: 'thin' }}>
+                  <SyntaxHighlighter
+                    language={preview.language || 'text'}
+                    style={docco}
+                    customStyle={{
+                      margin: 0,
+                      padding: '1.5rem',
+                      fontSize: '13px',
+                      fontFamily: '"Fira Code", "Consolas", monospace',
+                      minHeight: '100%',
+                      background: '#ffffff',
+                    }}
+                    showLineNumbers
+                    wrapLines
+                    lineProps={(lineNumber: number) => {
+                      const annotation = annotationsResult?.annotations?.find((a: any) => a.lineNumber === lineNumber);
+                      const isSelected = selectedLine === lineNumber;
+                      let style: React.CSSProperties = { display: 'block' };
+
+                      if (annotation || isSelected) {
+                        const sev = annotation?.severity;
+                        style = {
+                          display: 'block',
+                          backgroundColor:
+                            isSelected ? '#e0e7ff' :
+                            sev === 'SECURITY' ? '#fee2e2' :
+                            sev === 'BUG' ? '#fef3c7' :
+                            sev === 'BEST_PRACTICE' ? '#e0f2fe' :
+                            sev === 'PRAISE' ? '#dcfce7' : 'transparent',
+                          borderLeft:
+                            sev === 'SECURITY' ? '4px solid #ef4444' :
+                            sev === 'BUG' ? '4px solid #f59e0b' :
+                            sev === 'BEST_PRACTICE' ? '4px solid #0ea5e9' :
+                            sev === 'PRAISE' ? '4px solid #22c55e' : 'none',
+                          paddingLeft: annotation ? '8px' : '0px',
+                          cursor: annotation ? 'pointer' : 'default',
+                        };
+                      }
+
+                      return {
+                        style,
+                        onClick: () => {
+                          if (annotation) {
+                            setSelectedLine(lineNumber);
+                            setShowAnnotationsDrawer(true);
+                          }
+                        }
+                      };
+                    }}
+                  >
+                    {preview.content || ''}
+                  </SyntaxHighlighter>
+                </div>
+
+                {/* AI Annotations Bottom Panel */}
+                {showAnnotationsDrawer && annotationsResult && (
+                  <div
+                    style={{ height: `${auditPanelHeight}px` }}
+                    className="bg-white border-t-2 border-indigo-300 shadow-2xl overflow-hidden shrink-0 flex flex-col z-20 relative transition-[height] duration-75 ease-out"
+                  >
+                    {/* Drag Handle Bar */}
+                    <div
+                      onMouseDown={(e) => { e.preventDefault(); setIsDraggingAudit(true); }}
+                      className="h-2.5 bg-indigo-100/80 hover:bg-indigo-200 cursor-ns-resize flex items-center justify-center border-b border-indigo-200/60 shrink-0 transition-colors select-none"
+                      title="Kéo lên/xuống để thay đổi kích thước khung audit"
+                    >
+                      <GripHorizontal className="w-5 h-3 text-indigo-500" />
+                    </div>
+
+                    {/* Header Bar */}
+                    <div className="p-2.5 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between shrink-0">
+                      <div className="flex items-center space-x-2 text-xs font-bold text-indigo-900 truncate pr-2">
+                        <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <span className="truncate">AI Code Audit Summary: {annotationsResult.overallQuality}</span>
+                      </div>
+                      <div className="flex items-center space-x-1 shrink-0">
+                        <button
+                          onClick={() => setAuditPanelHeight(160)}
+                          title="Thu nhỏ (Minimize)"
+                          className="p-1 text-indigo-600 hover:bg-indigo-100 rounded transition-colors"
+                        >
+                          <Minimize2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setAuditPanelHeight(Math.floor(window.innerHeight * 0.65))}
+                          title="Mở rộng (Maximize)"
+                          className="p-1 text-indigo-600 hover:bg-indigo-100 rounded transition-colors"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setShowAnnotationsDrawer(false)}
+                          title="Đóng (Close)"
+                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors ml-1.5"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Scrollable Grid Content */}
+                    <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-3 overflow-y-auto flex-1">
+                      {annotationsResult.annotations?.map((ann: any, idx: number) => {
+                        const isActive = selectedLine === ann.lineNumber;
+                        const icon =
+                          ann.severity === 'SECURITY' ? <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" /> :
+                          ann.severity === 'BUG' ? <Bug className="w-4 h-4 text-amber-600 shrink-0" /> :
+                          ann.severity === 'BEST_PRACTICE' ? <Lightbulb className="w-4 h-4 text-sky-600 shrink-0" /> :
+                          <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />;
+
+                        const bgClass =
+                          ann.severity === 'SECURITY' ? 'bg-red-50/70 border-red-200' :
+                          ann.severity === 'BUG' ? 'bg-amber-50/70 border-amber-200' :
+                          ann.severity === 'BEST_PRACTICE' ? 'bg-sky-50/70 border-sky-200' :
+                          'bg-green-50/70 border-green-200';
+
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => setSelectedLine(ann.lineNumber)}
+                            className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${bgClass} ${isActive ? 'ring-2 ring-indigo-500 scale-[1.01]' : 'hover:opacity-90'}`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center space-x-1.5 font-extrabold text-[#1B2559]">
+                                {icon}
+                                <span>Line {ann.lineNumber}: {ann.title}</span>
+                              </div>
+                              <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-white/80 shadow-sm text-gray-700">
+                                {ann.severity}
+                              </span>
+                            </div>
+                            <p className="text-gray-700 leading-relaxed mb-1.5">{ann.comment}</p>
+                            {ann.suggestedFix && (
+                              <div className="bg-gray-900 text-green-400 font-mono p-2 rounded-lg text-[11px] overflow-x-auto">
+                                <span className="text-gray-500 select-none block text-[10px]">💡 Suggested Fix:</span>
+                                {ann.suggestedFix}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : preview.type === 'binary' ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">

@@ -147,11 +147,12 @@ const SubjectHeadMessagesPage = () => {
       const contactId = activeRoomId.replace('temp_', '');
       member = contacts.find(c => getIdStr(c) === contactId) || globalSearchResults.find(c => getIdStr(c) === contactId);
     } else if (activeConversation && activeConversation.type === 'direct') {
-      const otherMemberId = activeConversation.memberIds.find(id => getIdStr(id) !== currentUserId);
-      const targetId = getIdStr(otherMemberId);
-      member = contacts.find(c => getIdStr(c) === targetId);
-      if (!member && typeof otherMemberId === 'object' && otherMemberId !== null && (otherMemberId as any).fullName) {
-        member = otherMemberId;
+      member = contacts.find(c => activeConversation.memberIds.map(getIdStr).includes(getIdStr(c)));
+      if (!member) {
+        const otherMemberId = activeConversation.memberIds.find(id => getIdStr(id) !== currentUserId);
+        if (typeof otherMemberId === 'object' && otherMemberId !== null && (otherMemberId as any).fullName) {
+          member = otherMemberId;
+        }
       }
     }
     return member;
@@ -169,9 +170,7 @@ const SubjectHeadMessagesPage = () => {
       return 'group chat'.includes(searchQuery.toLowerCase());
     }
     
-    const otherId = conv.memberIds.find(id => getIdStr(id) !== currentUserId);
-    const targetId = getIdStr(otherId);
-    const contact = contacts.find(c => getIdStr(c) === targetId);
+    const contact = contacts.find(c => conv.memberIds.map(getIdStr).includes(getIdStr(c)));
     if (!contact) return false;
     
     const query = searchQuery.toLowerCase();
@@ -239,9 +238,8 @@ const SubjectHeadMessagesPage = () => {
                   contactName = 'Group Chat';
                   avatarUrl = `https://ui-avatars.com/api/?name=GC&background=FFF7ED&color=F97316`;
                 } else {
-                  const otherId = conv.memberIds.find(id => String(id) !== currentUserId);
-                  const targetId = getIdStr(otherId);
-                  const contact = contacts.find(c => String(c._id) === targetId);
+                  const contact = contacts.find(c => conv.memberIds.map(getIdStr).includes(getIdStr(c)));
+                  const otherId = conv.memberIds.find(id => getIdStr(id) !== currentUserId);
                   if (contact) {
                     contactName = contact.fullName;
                     avatarUrl = contact.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.fullName)}&background=F26F21&color=fff`;

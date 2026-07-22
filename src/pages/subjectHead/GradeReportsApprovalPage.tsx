@@ -83,7 +83,7 @@ const GradeReportsApprovalPage: React.FC = () => {
 
   // Modal State
   const [selectedReport, setSelectedReport] = useState<GradeReport | null>(null);
-  const [modalMode, setModalMode] = useState<'approve' | 'reject' | 'view' | null>(null);
+  const [modalMode, setModalMode] = useState<'approve' | 'reject' | 'view' | 'reopen' | null>(null);
   const [reviewNote, setReviewNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -440,7 +440,7 @@ const GradeReportsApprovalPage: React.FC = () => {
               }`}>
                 <div className="flex items-center space-x-2">
                   {selectedReport.status === 'approved' ? (
-                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
                   ) : (
                     <XCircle className="w-5 h-5 text-red-600" />
                   )}

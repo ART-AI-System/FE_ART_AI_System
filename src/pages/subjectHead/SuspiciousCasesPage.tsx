@@ -69,38 +69,46 @@ const SuspiciousCasesPage = () => {
   const [selectedSemester, setSelectedSemester] = useState('ALL');
   const [selectedCase, setSelectedCase] = useState<any | null>(null);
 
-  useEffect(() => {
-    const fetchCases = async () => {
-      setLoading(true);
-      try {
-        const res: any = await axiosClient.get('/reports/suspicious-cases');
-        const data = res.result || res.data || res;
-        if (Array.isArray(data) && data.length > 0) {
-          const mapped = data.map((item: any, idx: number) => ({
-            ...item,
-            _id: item._id || `case-api-${idx}`,
-            studentFullName: item.studentFullName || 'Student Account',
-            studentCode: item.studentCode || `SE1800${idx}`,
-            classCode: item.classCode || 'SE20A09',
-            subjectName: item.subjectName || 'Course Assignment',
-            aiMatch: item.aiMatch || (item.suspectLevel === 'high' ? 92 : 82),
-            description: item.description || 'High AI generation match detected by automated evaluation engine.'
-          }));
-          setCases(mapped);
-        }
-      } catch (err) {
-        console.error('Failed to fetch suspicious cases from API, using mock data', err);
-      } finally {
-        setLoading(false);
+  const fetchCases = async () => {
+    setLoading(true);
+    try {
+      const res: any = await axiosClient.get('/reports/suspicious-cases');
+      const data = res.result || res.data || (Array.isArray(res) ? res : []);
+      if (Array.isArray(data) && data.length > 0) {
+        const mapped = data.map((item: any, idx: number) => ({
+          ...item,
+          _id: item._id || `case-api-${idx}`,
+          studentFullName: item.studentFullName || 'Student Account',
+          studentCode: item.studentCode || `SE1800${idx}`,
+          classCode: item.classCode || 'SE20A09',
+          subjectName: item.subjectName || 'Course Assignment',
+          aiMatch: item.aiMatch || (item.suspectLevel === 'high' ? 92 : 82),
+          description: item.description || 'High AI generation match detected by automated evaluation engine.'
+        }));
+        setCases(mapped);
       }
-    };
+    } catch (err) {
+      console.error('Failed to fetch suspicious cases from API, using mock data', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchCases();
   }, []);
 
-  const handleResolveCase = (id: string, action: 'clear' | 'penalty') => {
-    setCases(prev => prev.map(c => c._id === id ? { ...c, isResolved: true, resolutionAction: action } : c));
-    setSelectedCase(null);
-    alert(action === 'clear' ? 'Case marked as Cleared / Resolved.' : 'Academic integrity penalty issued for this case.');
+  const handleResolveCase = async (id: string, action: 'clear' | 'penalty') => {
+    try {
+      await axiosClient.patch(`/reports/suspicious-cases/${id}/resolve`, { action });
+      await fetchCases();
+    } catch (err) {
+      console.error('Failed to resolve case via API:', err);
+      // Local state fallback if offline
+      setCases(prev => prev.map(c => c._id === id ? { ...c, isResolved: true, resolutionAction: action } : c));
+    } finally {
+      setSelectedCase(null);
+    }
   };
 
   const filteredCases = cases.filter(c => {

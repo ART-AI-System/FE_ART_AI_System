@@ -1,8 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  BrainCircuit, LayoutDashboard, ShieldAlert, 
-  MessageCircle, Settings, X 
+  BrainCircuit, LayoutDashboard, ShieldAlert, FileCheck, 
+  BookOpen, MessageCircle, Settings, X 
 } from 'lucide-react';
 
 interface SubjectHeadSidebarProps {
@@ -70,11 +70,24 @@ const SubjectHeadSidebar: React.FC<SubjectHeadSidebarProps> = ({
             {!sidebarCollapsed && <span className="whitespace-nowrap">Overview Dashboard</span>}
           </Link>
 
+          <Link to="/subject-head/grade-approvals" className={navItemClass('/subject-head/grade-approvals')}>
+            {location.pathname.includes('/subject-head/grade-approvals') && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-[#EAB308] rounded-r-full"></div>}
+            <FileCheck className={`w-5 h-5 mr-4 ${location.pathname.includes('/subject-head/grade-approvals') ? 'text-[#EAB308]' : 'opacity-70'} shrink-0`} />
+            {!sidebarCollapsed && <span className="whitespace-nowrap">Grade Approvals</span>}
+            {!sidebarCollapsed && <span className="ml-auto bg-yellow-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">2</span>}
+          </Link>
+
           <Link to="/subject-head/suspicious-cases" className={navItemClass('/subject-head/suspicious-cases')}>
             {location.pathname.includes('/subject-head/suspicious-cases') && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-[#EAB308] rounded-r-full"></div>}
             <ShieldAlert className={`w-5 h-5 mr-4 ${location.pathname.includes('/subject-head/suspicious-cases') ? 'text-[#EAB308]' : 'opacity-70'} shrink-0`} />
             {!sidebarCollapsed && <span className="whitespace-nowrap">Suspicious AI Cases</span>}
             {!sidebarCollapsed && <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">3</span>}
+          </Link>
+
+          <Link to="/subject-head/subjects" className={navItemClass('/subject-head/subjects')}>
+            {location.pathname.includes('/subject-head/subjects') && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-[#EAB308] rounded-r-full"></div>}
+            <BookOpen className={`w-5 h-5 mr-4 ${location.pathname.includes('/subject-head/subjects') ? 'text-[#EAB308]' : 'opacity-70'} shrink-0`} />
+            {!sidebarCollapsed && <span className="whitespace-nowrap">Dept Subjects</span>}
           </Link>
 
           <div className="pt-8 pb-2 relative flex items-center px-4">

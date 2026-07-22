@@ -37,6 +37,8 @@ import SubjectHeadLayout from './layouts/SubjectHeadLayout';
 import SubjectHeadDashboardPage from './pages/subjectHead/SubjectHeadDashboardPage';
 import SuspiciousCasesPage from './pages/subjectHead/SuspiciousCasesPage';
 import SubjectHeadMessagesPage from './pages/subjectHead/SubjectHeadMessagesPage';
+import GradeReportsApprovalPage from './pages/subjectHead/GradeReportsApprovalPage';
+import SubjectAnalyticsPage from './pages/subjectHead/SubjectAnalyticsPage';
 
 import SettingsPage from './pages/SettingsPage';
 import { AuthProvider } from './context/AuthContext';
@@ -108,7 +110,9 @@ function AppRoutes() {
       <Route path="/subject-head" element={<SubjectHeadLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<SubjectHeadDashboardPage />} />
+        <Route path="grade-approvals" element={<GradeReportsApprovalPage />} />
         <Route path="suspicious-cases" element={<SuspiciousCasesPage />} />
+        <Route path="subjects" element={<SubjectAnalyticsPage />} />
         <Route path="messages" element={<SubjectHeadMessagesPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>

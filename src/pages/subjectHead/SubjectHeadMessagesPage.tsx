@@ -347,22 +347,22 @@ const SubjectHeadMessagesPage = () => {
                       return (
                         <div key={msg._id} className="flex justify-end max-w-[75%] ml-auto">
                           <div className="flex flex-col items-end">
-                            <div className="bg-gradient-to-r from-[#4318FF] to-[#3B82F6] text-white px-5 py-3 rounded-2xl rounded-br-xs shadow-md shadow-blue-500/15 text-sm font-medium leading-relaxed">
+                            <div className="bg-[#7C3AED] text-white px-4 py-2.5 rounded-[18px] rounded-br-[4px] shadow-sm text-sm font-medium leading-relaxed">
                               {msg.content}
                             </div>
                             <div className="flex items-center mt-1 mr-1">
                               <span className="text-[10px] font-bold text-gray-400 mr-1.5">{time}</span>
-                              {isRead ? <CheckCheck className="w-3.5 h-3.5 text-[#4318FF]" /> : <Check className="w-3.5 h-3.5 text-gray-400" />}
+                              {isRead ? <CheckCheck className="w-3.5 h-3.5 text-[#7C3AED]" /> : <Check className="w-3.5 h-3.5 text-gray-400" />}
                             </div>
                           </div>
                         </div>
                       );
                     } else {
                       return (
-                        <div key={msg._id} className="flex max-w-[75%] items-end space-x-3">
-                          <img src={otherMember?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherMember?.fullName || 'User')}&background=F26F21&color=fff`} className="w-8 h-8 rounded-full shrink-0 shadow-sm self-end mb-5" alt="Avatar" />
-                          <div>
-                            <div className="bg-white border border-gray-200/80 text-[#1B2559] px-5 py-3 rounded-2xl rounded-bl-xs shadow-xs text-sm font-medium leading-relaxed">
+                        <div key={msg._id} className="flex justify-start max-w-[75%] mr-auto items-end space-x-2">
+                          <img src={otherMember?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherMember?.fullName || 'User')}&background=F26F21&color=fff`} className="w-8 h-8 rounded-full shrink-0 shadow-xs self-end mb-5" alt="Avatar" />
+                          <div className="flex flex-col items-start">
+                            <div className="bg-[#E4E6EB] border border-gray-200/50 text-[#050505] px-4 py-2.5 rounded-[18px] rounded-bl-[4px] shadow-xs text-sm font-medium leading-relaxed">
                               {msg.content}
                             </div>
                             <span className="text-[10px] font-bold text-gray-400 mt-1 ml-1 block">{time}</span>

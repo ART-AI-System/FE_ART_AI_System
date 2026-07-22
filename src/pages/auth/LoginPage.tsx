@@ -65,7 +65,9 @@ const LoginPage = () => {
       login(access_token, refresh_token, user);
 
       // Navigate based on actual role from backend
-      if (user.role === 'lecturer' || user.role === 'subject_head' || user.role === 'headsubject' || user.role === 'SUBJECT_HEAD') {
+      if (user.role === 'subject_head' || user.role === 'headsubject' || user.role === 'SUBJECT_HEAD') {
+        navigate('/subject-head/dashboard');
+      } else if (user.role === 'lecturer' || user.role === 'LECTURER') {
         navigate('/lecturer/dashboard');
       } else if (user.role === 'admin' || user.role === 'ADMIN') {
         navigate('/admin/dashboard');

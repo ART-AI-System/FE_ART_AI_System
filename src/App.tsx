@@ -32,6 +32,12 @@ import AdminMessagesPage from './pages/admin/AdminMessagesPage';
 import AdminTeachers from './pages/admin/AdminTeachers';
 import AdminClasses from './pages/admin/AdminClasses';
 
+// Subject Head Pages
+import SubjectHeadLayout from './layouts/SubjectHeadLayout';
+import SubjectHeadDashboardPage from './pages/subjectHead/SubjectHeadDashboardPage';
+import SuspiciousCasesPage from './pages/subjectHead/SuspiciousCasesPage';
+import SubjectHeadMessagesPage from './pages/subjectHead/SubjectHeadMessagesPage';
+
 import SettingsPage from './pages/SettingsPage';
 import { AuthProvider } from './context/AuthContext';
 
@@ -97,6 +103,16 @@ function AppRoutes() {
         <Route path="messages" element={<AdminMessagesPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
+
+      {/* Subject Head Routes */}
+      <Route path="/subject-head" element={<SubjectHeadLayout />}>
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<SubjectHeadDashboardPage />} />
+        <Route path="suspicious-cases" element={<SuspiciousCasesPage />} />
+        <Route path="messages" element={<SubjectHeadMessagesPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+      </Route>
+      <Route path="/headsubject/*" element={<Navigate to="/subject-head/dashboard" replace />} />
     </Routes>
   );
 }

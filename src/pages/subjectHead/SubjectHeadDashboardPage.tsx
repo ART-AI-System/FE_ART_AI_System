@@ -30,7 +30,7 @@ const SubjectHeadDashboardPage = () => {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const blob = await reportService.exportReport('summary', 'overview', selectedFormat);
+      const blob: any = await reportService.exportSemesterReport('current', 'overview', selectedFormat);
       downloadBlob(blob, `subject_head_overview_report.${selectedFormat}`);
     } catch (err) {
       console.log('Generating fallback overview export report.');

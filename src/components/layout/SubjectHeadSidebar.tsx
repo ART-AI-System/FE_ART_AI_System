@@ -37,14 +37,14 @@ const SubjectHeadSidebar: React.FC<SubjectHeadSidebarProps> = ({
         const casesData = casesRes?.result || casesRes?.data || (Array.isArray(casesRes) ? casesRes : []);
         if (Array.isArray(casesData)) {
           const suspiciousCount = casesData.filter((c: any) => !c.isResolved).length;
-          setPendingSuspicious(suspiciousCount || 3);
+          setPendingSuspicious(suspiciousCount);
         } else {
-          setPendingSuspicious(3);
+          setPendingSuspicious(0);
         }
       } catch (err) {
         // Fallback demo values if API is offline
-        setPendingApprovals(2);
-        setPendingSuspicious(3);
+        setPendingApprovals(1);
+        setPendingSuspicious(0);
       }
     };
 

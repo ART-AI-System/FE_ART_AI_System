@@ -120,31 +120,34 @@ const GradeReportsApprovalPage: React.FC = () => {
     fetchReports();
   }, []);
 
-  const handleOpenAction = (report: GradeReport, mode: 'approve' | 'reject' | 'view') => {
+  const handleOpenAction = (report: GradeReport, mode: 'approve' | 'reject' | 'view' | 'reopen') => {
     setSelectedReport(report);
-    setModalMode(mode);
+    setModalMode(mode === 'view' ? 'view' : mode);
     setReviewNote(report.reviewNote || '');
   };
 
-  const handleConfirmAction = async () => {
-    if (!selectedReport || !modalMode) return;
+  const handleConfirmActionWithMode = async (targetMode: 'approve' | 'reject' | 'reopen') => {
+    if (!selectedReport) return;
     setSubmitting(true);
 
     try {
-      if (modalMode === 'approve') {
-        await axiosClient.patch(`/subject-head/grade-reports/${selectedReport._id}/approve`);
-      } else if (modalMode === 'reject') {
+      if (targetMode === 'approve') {
+        await axiosClient.patch(`/subject-head/grade-reports/${selectedReport._id}/approve`, { reviewNote });
+      } else if (targetMode === 'reject') {
         await axiosClient.patch(`/subject-head/grade-reports/${selectedReport._id}/reject`, { reviewNote });
+      } else if (targetMode === 'reopen') {
+        await axiosClient.patch(`/subject-head/grade-reports/${selectedReport._id}/reopen`);
       }
       // Re-fetch reports from backend to ensure persistent DB state
       await fetchReports();
     } catch (err) {
       console.error('Grade report review error:', err);
       // Local state fallback if offline
+      const newStatus = targetMode === 'approve' ? 'approved' : targetMode === 'reject' ? 'rejected' : 'pending';
       setReports(prev => prev.map(r => r._id === selectedReport._id ? {
         ...r, 
-        status: modalMode === 'approve' ? 'approved' : 'rejected',
-        reviewNote: reviewNote || (modalMode === 'approve' ? 'Grade report officially approved by Subject Head.' : 'Returned for lecturer re-audit.')
+        status: newStatus,
+        reviewNote: reviewNote || (targetMode === 'approve' ? 'Grade report officially approved by Subject Head.' : targetMode === 'reject' ? 'Returned for lecturer re-audit.' : 'Reopened for re-review.')
       } : r));
     } finally {
       setSubmitting(false);
@@ -361,9 +364,9 @@ const GradeReportsApprovalPage: React.FC = () => {
                         ) : (
                           <button
                             onClick={() => handleOpenAction(r, 'view')}
-                            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition-all flex items-center"
+                            className="px-3 py-1.5 bg-[#1B2559] hover:bg-[#2A3673] text-white rounded-lg text-xs font-bold transition-all flex items-center shadow-sm"
                           >
-                            <Eye className="w-3.5 h-3.5 mr-1" /> Review
+                            <Eye className="w-3.5 h-3.5 mr-1" /> Review / Edit Decision
                           </button>
                         )}
                       </div>
@@ -428,15 +431,38 @@ const GradeReportsApprovalPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Decision Status Banner if already reviewed */}
+            {selectedReport.status !== 'pending' && (
+              <div className={`p-3.5 rounded-2xl mb-5 border flex items-center justify-between text-xs ${
+                selectedReport.status === 'approved'
+                  ? 'bg-green-50 border-green-200 text-green-800'
+                  : 'bg-red-50 border-red-200 text-red-800'
+              }`}>
+                <div className="flex items-center space-x-2">
+                  {selectedReport.status === 'approved' ? (
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                  ) : (
+                    <XCircle className="w-5 h-5 text-red-600" />
+                  )}
+                  <div>
+                    <p className="font-extrabold uppercase">Current Status: {selectedReport.status.toUpperCase()}</p>
+                    <p className="text-gray-600 font-medium mt-0.5">{selectedReport.reviewNote || 'No review note entered.'}</p>
+                  </div>
+                </div>
+                <span className="font-bold bg-white/80 px-2.5 py-1 rounded-lg">
+                  Recorded in DB
+                </span>
+              </div>
+            )}
+
             {/* Review Note Input */}
             <div className="mb-6">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                {modalMode === 'reject' ? 'Rejection Reason (Required)' : 'Review Notes (Optional)'}
+                Review Notes / Rejection Reason
               </label>
               <textarea
                 rows={3}
-                disabled={modalMode === 'view'}
-                placeholder={modalMode === 'reject' ? 'State why this report is rejected and what lecturer needs to revise...' : 'Add any additional note for the department records...'}
+                placeholder="Add review notes or state why this report needs revision..."
                 value={reviewNote}
                 onChange={e => setReviewNote(e.target.value)}
                 className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#EAB308]"
@@ -444,33 +470,39 @@ const GradeReportsApprovalPage: React.FC = () => {
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end space-x-3">
+            <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2">
               <button
                 onClick={() => setModalMode(null)}
-                className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100"
               >
                 Close
               </button>
 
-              {modalMode === 'approve' && (
+              {selectedReport.status !== 'pending' && (
                 <button
-                  onClick={handleConfirmAction}
+                  onClick={() => handleConfirmActionWithMode('reopen')}
                   disabled={submitting}
-                  className="px-6 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold shadow-md shadow-green-600/20 disabled:opacity-50"
+                  className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-100 disabled:opacity-50"
                 >
-                  {submitting ? 'Approving...' : 'Confirm Approval'}
+                  Reopen to Pending
                 </button>
               )}
 
-              {modalMode === 'reject' && (
-                <button
-                  onClick={handleConfirmAction}
-                  disabled={submitting || !reviewNote.trim()}
-                  className="px-6 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold shadow-md shadow-red-500/20 disabled:opacity-50"
-                >
-                  {submitting ? 'Rejecting...' : 'Confirm Rejection'}
-                </button>
-              )}
+              <button
+                onClick={() => handleConfirmActionWithMode('reject')}
+                disabled={submitting}
+                className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold shadow-md shadow-red-500/20 disabled:opacity-50"
+              >
+                {submitting ? 'Updating...' : selectedReport.status === 'rejected' ? 'Update Rejection' : 'Reject Report'}
+              </button>
+
+              <button
+                onClick={() => handleConfirmActionWithMode('approve')}
+                disabled={submitting}
+                className="px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold shadow-md shadow-green-600/20 disabled:opacity-50"
+              >
+                {submitting ? 'Updating...' : selectedReport.status === 'approved' ? 'Update Approval' : 'Approve Report'}
+              </button>
             </div>
           </div>
         </div>

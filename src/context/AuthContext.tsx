@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axiosClient from '../api/axiosClient';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { preloadConversations } from '../hooks/useConversations';
+import { preloadConversations, clearConversationsCache } from '../hooks/useConversations';
 
 interface User {
   id: string;
@@ -49,12 +49,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [navigate, location.pathname]);
 
   const login = (access_token: string, refresh_token: string, userData: User) => {
+    clearConversationsCache();
     localStorage.setItem('access_token', access_token);
     localStorage.setItem('refresh_token', refresh_token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
     // Preload conversations immediately after manual login
-    preloadConversations();
+    preloadConversations(true);
   };
 
   const logout = async () => {
@@ -66,6 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Logout failed on backend:', error);
     } finally {
+      clearConversationsCache();
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');

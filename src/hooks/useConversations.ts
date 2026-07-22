@@ -6,10 +6,18 @@ import { useChatSocket } from './useChatSocket';
 // Global cache to prevent slow loading on every page visit
 let cachedConversations: ChatRoom[] | null = null;
 let cachedContacts: ChatUser[] | null = null;
-
 let preloadPromise: Promise<void> | null = null;
 
-export const preloadConversations = async () => {
+export const clearConversationsCache = () => {
+  cachedConversations = null;
+  cachedContacts = null;
+  preloadPromise = null;
+};
+
+export const preloadConversations = async (forceRefresh = false) => {
+  if (forceRefresh) {
+    clearConversationsCache();
+  }
   if (preloadPromise) return preloadPromise;
   
   preloadPromise = (async () => {
@@ -34,19 +42,17 @@ export const preloadConversations = async () => {
 export const useConversations = () => {
   const [conversations, setConversations] = useState<ChatRoom[]>(cachedConversations || []);
   const [contacts, setContacts] = useState<ChatUser[]>(cachedContacts || []);
-  const [loading, setLoading] = useState(!cachedConversations || !cachedContacts);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { socket } = useChatSocket();
 
   const fetchConversations = useCallback(async () => {
     try {
-      if (!cachedConversations || !cachedContacts) setLoading(true);
-      await preloadConversations();
+      setLoading(true);
+      await preloadConversations(true);
       
-      if (cachedConversations && cachedContacts) {
-        setConversations(cachedConversations);
-        setContacts(cachedContacts);
-      }
+      setConversations(cachedConversations || []);
+      setContacts(cachedContacts || []);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load conversations');

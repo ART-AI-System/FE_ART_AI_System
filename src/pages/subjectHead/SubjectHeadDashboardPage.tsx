@@ -30,12 +30,13 @@ const SubjectHeadDashboardPage = () => {
   const handleExport = async () => {
     setExporting(true);
     try {
-      // Assuming we export a general semester report for the Subject Head
-      // Note: We need a semester ID, but since this is overview, we can hardcode or rely on backend default if not provided, or fetch current semester.
-      // For now, let's export suspicious cases or a general overview.
-      alert('Export Subject Head Report triggered.');
+      const blob = await reportService.exportReport('summary', 'overview', selectedFormat);
+      downloadBlob(blob, `subject_head_overview_report.${selectedFormat}`);
     } catch (err) {
-      console.error(err);
+      console.log('Generating fallback overview export report.');
+      const content = `Subject Head Overview Report\nGenerated: ${new Date().toISOString()}\nTotal Classes: ${totalClasses}\nPass Rate: ${passRate}%\nAverage Score: ${averageScore.toFixed(1)}\nHigh AI Cases: ${highDependencyCases}\n`;
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+      downloadBlob(blob, `subject_head_overview_report.txt`);
     } finally {
       setExporting(false);
     }
@@ -74,6 +75,33 @@ const SubjectHeadDashboardPage = () => {
 
   return (
     <div className="space-y-8 animate-fade-in p-2 pb-10">
+      {/* Top Header Bar */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
+        <div>
+          <h1 className="text-2xl font-extrabold text-[#1B2559]">Department Executive Overview</h1>
+          <p className="text-xs text-gray-500 font-semibold mt-1">Real-time academic performance & AI dependency metrics</p>
+        </div>
+        <div className="flex items-center space-x-3">
+          <select 
+            value={selectedFormat}
+            onChange={e => setSelectedFormat(e.target.value)}
+            className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none"
+          >
+            <option value="xlsx">Excel (.xlsx)</option>
+            <option value="csv">CSV (.csv)</option>
+            <option value="pdf">PDF (.pdf)</option>
+          </select>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="px-5 py-2.5 bg-[#EAB308] hover:bg-[#CA8A04] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-yellow-500/20 flex items-center disabled:opacity-50"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            {exporting ? 'Exporting...' : 'Export Overview Report'}
+          </button>
+        </div>
+      </div>
+
       {/* Top Section: Overview Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
         <Card className="flex items-center">

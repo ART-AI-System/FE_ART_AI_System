@@ -118,6 +118,17 @@ const LecturerMessagesPage = () => {
 
   const activeConversation = useMemo(() => conversations.find(c => c._id === activeRoomId), [conversations, activeRoomId]);
   
+  const currentUserFromStorage = (() => {
+    try {
+      const raw = localStorage.getItem('user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const effectiveUser = user || currentUserFromStorage;
+
   const getIdStr = (val: any): string => {
     if (!val) return '';
     if (typeof val === 'string') return val;
@@ -128,21 +139,30 @@ const LecturerMessagesPage = () => {
     return String(val);
   };
 
-  const currentUserId = getIdStr(user);
+  const currentUserId = getIdStr(effectiveUser);
 
   const otherMember = useMemo(() => {
-    let member = null;
+    let member: any = null;
     if (activeRoomId?.startsWith('temp_')) {
       const contactId = activeRoomId.replace('temp_', '');
       member = contacts.find(c => getIdStr(c) === contactId) || globalSearchResults.find(c => getIdStr(c) === contactId);
     } else if (activeConversation && activeConversation.type === 'direct') {
       const otherMemberId = activeConversation.memberIds.find(id => getIdStr(id) !== currentUserId);
-      member = contacts.find(c => getIdStr(c) === getIdStr(otherMemberId));
+      const targetId = getIdStr(otherMemberId);
+      member = contacts.find(c => getIdStr(c) === targetId);
+      if (!member && typeof otherMemberId === 'object' && otherMemberId !== null && (otherMemberId as any).fullName) {
+        member = otherMemberId;
+      }
     }
     return member;
   }, [activeRoomId, activeConversation, contacts, globalSearchResults, currentUserId]);
 
   const filteredConversations = useMemo(() => conversations.filter(conv => {
+    if (conv.type === 'direct') {
+      const nonSelfMembers = conv.memberIds.filter(id => getIdStr(id) !== currentUserId);
+      if (nonSelfMembers.length === 0) return false;
+    }
+
     if (!searchQuery.trim()) return true;
     
     if (conv.type === 'group') {
@@ -150,7 +170,8 @@ const LecturerMessagesPage = () => {
     }
     
     const otherId = conv.memberIds.find(id => getIdStr(id) !== currentUserId);
-    const contact = contacts.find(c => getIdStr(c) === getIdStr(otherId));
+    const targetId = getIdStr(otherId);
+    const contact = contacts.find(c => getIdStr(c) === targetId);
     if (!contact) return false;
     
     const query = searchQuery.toLowerCase();
@@ -219,10 +240,14 @@ const LecturerMessagesPage = () => {
                   avatarUrl = `https://ui-avatars.com/api/?name=GC&background=FFF7ED&color=F97316`;
                 } else {
                   const otherId = conv.memberIds.find(id => getIdStr(id) !== currentUserId);
-                  const contact = contacts.find(c => getIdStr(c) === getIdStr(otherId));
+                  const targetId = getIdStr(otherId);
+                  const contact = contacts.find(c => getIdStr(c) === targetId);
                   if (contact) {
                     contactName = contact.fullName;
                     avatarUrl = contact.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.fullName)}&background=F26F21&color=fff`;
+                  } else if (typeof otherId === 'object' && otherId !== null && (otherId as any).fullName) {
+                    contactName = (otherId as any).fullName;
+                    avatarUrl = (otherId as any).avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contactName)}&background=F26F21&color=fff`;
                   } else {
                     avatarUrl = `https://ui-avatars.com/api/?name=Unknown&background=F26F21&color=fff`;
                   }

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Search, Edit, Phone, Video, MoreVertical, CheckCheck, Paperclip, Smile, Send } from 'lucide-react';
+import { Search, Edit, Phone, Video, MoreVertical, CheckCheck, Check, Paperclip, Smile, Send } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useConversations } from '../../hooks/useConversations';
 import { useMessages } from '../../hooks/useMessages';

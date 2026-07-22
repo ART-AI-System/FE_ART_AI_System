@@ -99,14 +99,20 @@ const SuspiciousCasesPage = () => {
     fetchCases();
   }, []);
 
-  const handleResolveCase = async (id: string, action: 'clear' | 'penalty') => {
+  const handleResolveCase = async (id: string, action: 'clear' | 'penalty' | 'reopen') => {
     try {
       await axiosClient.patch(`/reports/suspicious-cases/${id}/resolve`, { action });
       await fetchCases();
     } catch (err) {
       console.error('Failed to resolve case via API:', err);
       // Local state fallback if offline
-      setCases(prev => prev.map(c => c._id === id ? { ...c, isResolved: true, resolutionAction: action } : c));
+      const isResolved = action !== 'reopen';
+      setCases(prev => prev.map(c => c._id === id ? { 
+        ...c, 
+        isResolved, 
+        resolutionAction: action === 'reopen' ? null : action,
+        flagStatus: action === 'clear' ? 'NORMAL' : action === 'penalty' ? 'PENALIZED' : 'FLAGGED'
+      } : c));
     } finally {
       setSelectedCase(null);
     }
@@ -150,45 +156,57 @@ const SuspiciousCasesPage = () => {
         </div>
       </div>
 
-      {/* Stats Summary Cards */}
+      {/* Redesigned 4 Main Category Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <Card className="flex items-center justify-between border-l-4 border-l-red-500">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Pending Review</p>
-            <h3 className="text-3xl font-extrabold text-red-600">{pendingCount}</h3>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center">
-            <AlertTriangle className="w-6 h-6" />
-          </div>
-        </Card>
-
-        <Card className="flex items-center justify-between border-l-4 border-l-orange-500">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase mb-1">&gt;90% AI Match</p>
-            <h3 className="text-3xl font-extrabold text-[#1B2559]">{cases.filter(c => !c.isResolved && (c.aiMatch || 0) >= 90).length}</h3>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center">
-            <AlertOctagon className="w-6 h-6" />
+        <Card className="p-6 border-l-4 border-l-amber-500 bg-gradient-to-br from-amber-50/40 to-white shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-extrabold text-amber-600 uppercase tracking-wider mb-1">Pending Review (Chờ xử lý)</p>
+              <h3 className="text-4xl font-black text-amber-600 tracking-tight">{pendingCount}</h3>
+              <p className="text-xs text-gray-400 font-semibold mt-1">Awaiting Audit Decision</p>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-amber-100/80 text-amber-600 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
           </div>
         </Card>
 
-        <Card className="flex items-center justify-between border-l-4 border-l-blue-500">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Subjects Affected</p>
-            <h3 className="text-3xl font-extrabold text-[#1B2559]">{new Set(cases.map(c => c.subjectName)).size}</h3>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center">
-            <BookOpen className="w-6 h-6" />
+        <Card className="p-6 border-l-4 border-l-green-500 bg-gradient-to-br from-green-50/40 to-white shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-extrabold text-green-600 uppercase tracking-wider mb-1">Cleared Cases (Đã duyệt an toàn)</p>
+              <h3 className="text-4xl font-black text-green-600 tracking-tight">{clearedCount}</h3>
+              <p className="text-xs text-gray-400 font-semibold mt-1">Approved & Marked Normal</p>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-green-100/80 text-green-600 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-7 h-7" />
+            </div>
           </div>
         </Card>
 
-        <Card className="flex items-center justify-between border-l-4 border-l-green-500">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Resolved / Cleared</p>
-            <h3 className="text-3xl font-extrabold text-green-600">{clearedCount + penaltyCount}</h3>
+        <Card className="p-6 border-l-4 border-l-red-600 bg-gradient-to-br from-red-50/40 to-white shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-extrabold text-red-600 uppercase tracking-wider mb-1">Penalized (Đã phạt vi phạm)</p>
+              <h3 className="text-4xl font-black text-red-600 tracking-tight">{penaltyCount}</h3>
+              <p className="text-xs text-gray-400 font-semibold mt-1">Integrity Penalties Issued</p>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-red-100/80 text-red-600 flex items-center justify-center shrink-0">
+              <AlertOctagon className="w-7 h-7" />
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-green-50 text-green-500 flex items-center justify-center">
-            <CheckCircle2 className="w-6 h-6" />
+        </Card>
+
+        <Card className="p-6 border-l-4 border-l-[#1B2559] bg-gradient-to-br from-slate-50/40 to-white shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-extrabold text-[#1B2559] uppercase tracking-wider mb-1">Total Audited (Tổng số ca)</p>
+              <h3 className="text-4xl font-black text-[#1B2559] tracking-tight">{allCount}</h3>
+              <p className="text-xs text-gray-400 font-semibold mt-1">Total AI Flagged Logs</p>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-slate-100 text-[#1B2559] flex items-center justify-center shrink-0">
+              <BookOpen className="w-7 h-7" />
+            </div>
           </div>
         </Card>
       </div>
@@ -339,7 +357,7 @@ const SuspiciousCasesPage = () => {
                       onClick={() => setSelectedCase(c)}
                       className="bg-[#1B2559] text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#2A3673] transition-all flex items-center shadow-sm"
                     >
-                      <Eye className="w-4 h-4 mr-2" /> {c.isResolved ? 'View Details' : 'Review Case'}
+                      <Eye className="w-4 h-4 mr-2" /> {c.isResolved ? 'Review / Edit Decision' : 'Review Case'}
                     </button>
                   </div>
                 </div>
@@ -349,7 +367,7 @@ const SuspiciousCasesPage = () => {
         )}
       </div>
 
-      {/* Case Review Modal */}
+      {/* Case Review & Decision Re-editing Modal */}
       {selectedCase && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-[24px] max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-gray-100 relative animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
@@ -365,10 +383,36 @@ const SuspiciousCasesPage = () => {
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-xl font-extrabold text-[#1B2559]">Suspicious Case Investigation</h3>
+                <h3 className="text-xl font-extrabold text-[#1B2559]">Suspicious Case Audit & Decision</h3>
                 <p className="text-xs font-bold text-gray-400">ID: {selectedCase._id}</p>
               </div>
             </div>
+
+            {/* Current Decision Banner if already resolved */}
+            {selectedCase.isResolved && (
+              <div className={`p-4 rounded-2xl mb-6 border flex items-center justify-between ${
+                selectedCase.resolutionAction === 'clear' || selectedCase.flagStatus === 'NORMAL'
+                  ? 'bg-green-50 border-green-200 text-green-800'
+                  : 'bg-red-50 border-red-200 text-red-800'
+              }`}>
+                <div className="flex items-center space-x-3">
+                  {selectedCase.resolutionAction === 'clear' || selectedCase.flagStatus === 'NORMAL' ? (
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  ) : (
+                    <AlertOctagon className="w-6 h-6 text-red-600" />
+                  )}
+                  <div>
+                    <p className="text-xs font-extrabold uppercase tracking-wider">Current Decision</p>
+                    <p className="text-sm font-black">
+                      {selectedCase.resolutionAction === 'clear' || selectedCase.flagStatus === 'NORMAL' ? 'CLEARED (MARK SAFE)' : 'PENALIZED (INTEGRITY VIOLATION)'}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold bg-white/80 px-3 py-1 rounded-xl shadow-xs">
+                  Recorded in DB
+                </span>
+              </div>
+            )}
 
             <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-100 mb-6 text-sm">
               <div className="grid grid-cols-2 gap-4">
@@ -378,7 +422,7 @@ const SuspiciousCasesPage = () => {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase">Class Code</p>
-                  <p className="font-extrabold text-[#1B2559] text-base mt-0.5">{selectedCase.classCode} • {selectedCase.semester}</p>
+                  <p className="font-extrabold text-[#1B2559] text-base mt-0.5">{selectedCase.classCode} • {selectedCase.semester || 'SP26'}</p>
                 </div>
               </div>
               <div className="border-t border-gray-200 pt-3">
@@ -404,22 +448,32 @@ const SuspiciousCasesPage = () => {
             <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-6 flex items-start space-x-3 text-xs text-blue-800 font-medium">
               <FileText className="w-5 h-5 text-[#4318FF] shrink-0 mt-0.5" />
               <p>
-                As Subject Head, you can clear this case if the AI similarity is deemed acceptable (e.g. standard boilerplate/template usage), or issue an academic integrity penalty which flags the student record.
+                {selectedCase.isResolved 
+                  ? 'You can re-edit your decision at any time. Selecting an option below will immediately update the database record and recalculate department metrics.'
+                  : 'As Subject Head, you can clear this case if the AI similarity is deemed acceptable, or issue an academic integrity penalty which flags the student record.'}
               </p>
             </div>
 
             <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3">
+              {selectedCase.isResolved && (
+                <button 
+                  onClick={() => handleResolveCase(selectedCase._id, 'reopen')}
+                  className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-100 transition-all flex items-center justify-center text-xs"
+                >
+                  Reopen to Pending
+                </button>
+              )}
               <button 
                 onClick={() => handleResolveCase(selectedCase._id, 'clear')}
-                className="px-5 py-2.5 rounded-xl border-2 border-green-500 text-green-600 font-bold hover:bg-green-50 transition-all flex items-center justify-center"
+                className="px-5 py-2.5 rounded-xl border-2 border-green-500 text-green-600 font-bold hover:bg-green-50 transition-all flex items-center justify-center text-xs"
               >
-                <Check className="w-4 h-4 mr-2" /> Clear Flag (False Alarm)
+                <Check className="w-4 h-4 mr-1.5" /> {selectedCase.isResolved ? 'Switch to Cleared' : 'Clear Flag (Mark Safe)'}
               </button>
               <button 
                 onClick={() => handleResolveCase(selectedCase._id, 'penalty')}
-                className="px-5 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-all flex items-center justify-center shadow-md shadow-red-500/20"
+                className="px-5 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-all flex items-center justify-center shadow-md shadow-red-500/20 text-xs"
               >
-                <ShieldAlert className="w-4 h-4 mr-2" /> Issue Integrity Penalty
+                <ShieldAlert className="w-4 h-4 mr-1.5" /> {selectedCase.isResolved ? 'Switch to Penalized' : 'Issue Integrity Penalty'}
               </button>
             </div>
           </div>

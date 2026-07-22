@@ -118,17 +118,19 @@ const LecturerMessagesPage = () => {
 
   const activeConversation = useMemo(() => conversations.find(c => c._id === activeRoomId), [conversations, activeRoomId]);
   
+  const currentUserId = String((user as any)?._id || user?.id || '');
+
   const otherMember = useMemo(() => {
     let member = null;
     if (activeRoomId?.startsWith('temp_')) {
       const contactId = activeRoomId.replace('temp_', '');
-      member = contacts.find(c => c._id === contactId) || globalSearchResults.find(c => c._id === contactId);
+      member = contacts.find(c => String(c._id) === String(contactId)) || globalSearchResults.find(c => String(c._id) === String(contactId));
     } else if (activeConversation && activeConversation.type === 'direct') {
-      const otherMemberId = activeConversation.memberIds.find(id => id !== user?.id);
-      member = contacts.find(c => c._id === otherMemberId);
+      const otherMemberId = activeConversation.memberIds.find(id => String(id) !== currentUserId);
+      member = contacts.find(c => String(c._id) === String(otherMemberId));
     }
     return member;
-  }, [activeRoomId, activeConversation, contacts, globalSearchResults, user?.id]);
+  }, [activeRoomId, activeConversation, contacts, globalSearchResults, currentUserId]);
 
   const filteredConversations = useMemo(() => conversations.filter(conv => {
     if (!searchQuery.trim()) return true;
@@ -137,8 +139,8 @@ const LecturerMessagesPage = () => {
       return 'group chat'.includes(searchQuery.toLowerCase());
     }
     
-    const otherId = conv.memberIds.find(id => id !== user?.id);
-    const contact = contacts.find(c => c._id === otherId);
+    const otherId = conv.memberIds.find(id => String(id) !== currentUserId);
+    const contact = contacts.find(c => String(c._id) === String(otherId));
     if (!contact) return false;
     
     const query = searchQuery.toLowerCase();
@@ -147,10 +149,10 @@ const LecturerMessagesPage = () => {
     const userMatch = contact.username?.toLowerCase().includes(query) || false;
     
     return nameMatch || codeMatch || userMatch;
-  }), [conversations, searchQuery, contacts, user?.id]);
+  }), [conversations, searchQuery, contacts, currentUserId]);
 
   const searchResultContacts = useMemo(() => searchQuery.trim() ? contacts.filter(contact => {
-    const hasExistingConv = conversations.some(conv => conv.type === 'direct' && conv.memberIds.includes(contact._id));
+    const hasExistingConv = conversations.some(conv => conv.type === 'direct' && conv.memberIds.map(String).includes(String(contact._id)));
     if (hasExistingConv) return false;
 
     const query = searchQuery.toLowerCase();
@@ -161,8 +163,8 @@ const LecturerMessagesPage = () => {
     return nameMatch || codeMatch || userMatch;
   }) : [], [searchQuery, contacts, conversations]);
 
-  const combinedNewContacts = useMemo(() => Array.from(new Map([...searchResultContacts, ...globalSearchResults].map(c => [c._id, c])).values()).filter(contact => {
-    return !conversations.some(conv => conv.type === 'direct' && conv.memberIds.includes(contact._id));
+  const combinedNewContacts = useMemo(() => Array.from(new Map([...searchResultContacts, ...globalSearchResults].map(c => [String(c._id), c])).values()).filter(contact => {
+    return !conversations.some(conv => conv.type === 'direct' && conv.memberIds.map(String).includes(String(contact._id)));
   }), [searchResultContacts, globalSearchResults, conversations]);
 
   return (
@@ -206,8 +208,8 @@ const LecturerMessagesPage = () => {
                   contactName = 'Group Chat';
                   avatarUrl = `https://ui-avatars.com/api/?name=GC&background=FFF7ED&color=F97316`;
                 } else {
-                  const otherId = conv.memberIds.find(id => id !== user?.id);
-                  const contact = contacts.find(c => c._id === otherId);
+                  const otherId = conv.memberIds.find(id => String(id) !== currentUserId);
+                  const contact = contacts.find(c => String(c._id) === String(otherId));
                   if (contact) {
                     contactName = contact.fullName;
                     avatarUrl = contact.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.fullName)}&background=F26F21&color=fff`;

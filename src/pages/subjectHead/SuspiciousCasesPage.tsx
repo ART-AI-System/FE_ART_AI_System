@@ -67,6 +67,7 @@ const SuspiciousCasesPage = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSemester, setSelectedSemester] = useState('ALL');
+  const [activeTab, setActiveTab] = useState<'pending' | 'cleared' | 'penalty' | 'all'>('pending');
   const [selectedCase, setSelectedCase] = useState<any | null>(null);
 
   const fetchCases = async () => {
@@ -111,8 +112,17 @@ const SuspiciousCasesPage = () => {
     }
   };
 
+  const pendingCount = cases.filter(c => !c.isResolved).length;
+  const clearedCount = cases.filter(c => c.isResolved && (c.resolutionAction === 'clear' || c.flagStatus === 'NORMAL')).length;
+  const penaltyCount = cases.filter(c => c.isResolved && (c.resolutionAction === 'penalty' || c.flagStatus === 'PENALIZED')).length;
+  const allCount = cases.length;
+
   const filteredCases = cases.filter(c => {
-    if (c.isResolved) return false;
+    // Status Tab filtering
+    if (activeTab === 'pending' && c.isResolved) return false;
+    if (activeTab === 'cleared' && (!c.isResolved || (c.resolutionAction !== 'clear' && c.flagStatus !== 'NORMAL'))) return false;
+    if (activeTab === 'penalty' && (!c.isResolved || (c.resolutionAction !== 'penalty' && c.flagStatus !== 'PENALIZED'))) return false;
+
     if (selectedSemester !== 'ALL' && c.semester !== selectedSemester) return false;
     if (searchTerm && !`${c.studentFullName} ${c.studentCode} ${c.classCode} ${c.subjectName}`.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false;
@@ -145,7 +155,7 @@ const SuspiciousCasesPage = () => {
         <Card className="flex items-center justify-between border-l-4 border-l-red-500">
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase mb-1">Pending Review</p>
-            <h3 className="text-3xl font-extrabold text-red-600">{cases.filter(c => !c.isResolved).length}</h3>
+            <h3 className="text-3xl font-extrabold text-red-600">{pendingCount}</h3>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center">
             <AlertTriangle className="w-6 h-6" />
@@ -165,7 +175,7 @@ const SuspiciousCasesPage = () => {
         <Card className="flex items-center justify-between border-l-4 border-l-blue-500">
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase mb-1">Subjects Affected</p>
-            <h3 className="text-3xl font-extrabold text-[#1B2559]">{new Set(cases.filter(c => !c.isResolved).map(c => c.subjectName)).size}</h3>
+            <h3 className="text-3xl font-extrabold text-[#1B2559]">{new Set(cases.map(c => c.subjectName)).size}</h3>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center">
             <BookOpen className="w-6 h-6" />
@@ -175,12 +185,62 @@ const SuspiciousCasesPage = () => {
         <Card className="flex items-center justify-between border-l-4 border-l-green-500">
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase mb-1">Resolved / Cleared</p>
-            <h3 className="text-3xl font-extrabold text-green-600">{cases.filter(c => c.isResolved).length}</h3>
+            <h3 className="text-3xl font-extrabold text-green-600">{clearedCount + penaltyCount}</h3>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-green-50 text-green-500 flex items-center justify-center">
             <CheckCircle2 className="w-6 h-6" />
           </div>
         </Card>
+      </div>
+
+      {/* Status Filter Tabs */}
+      <div className="flex items-center space-x-2 bg-white p-2 rounded-2xl border border-gray-100 shadow-sm mb-6 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('pending')}
+          className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
+            activeTab === 'pending'
+              ? 'bg-[#EAB308] text-white shadow-md shadow-yellow-500/20'
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4" />
+          <span>Pending ({pendingCount})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('cleared')}
+          className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
+            activeTab === 'cleared'
+              ? 'bg-green-600 text-white shadow-md shadow-green-500/20'
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          <span>Cleared ({clearedCount})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('penalty')}
+          className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
+            activeTab === 'penalty'
+              ? 'bg-red-600 text-white shadow-md shadow-red-500/20'
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <AlertOctagon className="w-4 h-4" />
+          <span>Penalized ({penaltyCount})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
+            activeTab === 'all'
+              ? 'bg-[#1B2559] text-white shadow-md'
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <span>All ({allCount})</span>
+        </button>
       </div>
 
       {/* Search & Filter Toolbar */}
@@ -221,49 +281,71 @@ const SuspiciousCasesPage = () => {
         ) : filteredCases.length === 0 ? (
           <Card className="p-12 text-center">
             <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-[#1B2559]">No Pending Suspicious Cases Found</h3>
-            <p className="text-gray-500 text-sm mt-1">All flagged submissions have been reviewed or cleared.</p>
+            <h3 className="text-lg font-bold text-[#1B2559]">No Cases Found</h3>
+            <p className="text-gray-500 text-sm mt-1">There are no cases matching the selected status tab or filters.</p>
           </Card>
         ) : (
-          filteredCases.map(c => (
-            <Card key={c._id} className="p-6 border-l-4 border-l-red-500 hover:shadow-md transition-all">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shrink-0 font-extrabold text-lg">
-                    {c.aiMatch || 90}%
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <span className="bg-red-100 text-red-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full uppercase">
-                        High AI Similarity
-                      </span>
-                      <span className="bg-gray-100 text-gray-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                        {c.classCode}
-                      </span>
-                      <span className="text-xs font-bold text-gray-400">• {c.semester}</span>
-                    </div>
-                    <h3 className="text-lg font-bold text-[#1B2559]">
-                      {c.studentFullName} <span className="text-gray-500 text-sm font-medium">({c.studentCode})</span>
-                    </h3>
-                    <p className="text-sm font-bold text-[#4318FF] mt-0.5">{c.subjectName}</p>
-                    <p className="text-sm text-gray-600 mt-2 bg-red-50/50 p-3 rounded-xl border border-red-100 font-medium">
-                      <span className="font-bold text-red-700 mr-1">AI Audit Flag:</span>
-                      {c.description}
-                    </p>
-                  </div>
-                </div>
+          filteredCases.map(c => {
+            const isCleared = c.isResolved && (c.resolutionAction === 'clear' || c.flagStatus === 'NORMAL');
+            const isPenalized = c.isResolved && (c.resolutionAction === 'penalty' || c.flagStatus === 'PENALIZED');
+            const borderClass = isCleared 
+              ? 'border-l-green-500' 
+              : isPenalized 
+              ? 'border-l-red-600' 
+              : 'border-l-yellow-500';
 
-                <div className="flex items-center space-x-3 shrink-0 self-end lg:self-center">
-                  <button 
-                    onClick={() => setSelectedCase(c)}
-                    className="bg-[#1B2559] text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#2A3673] transition-all flex items-center shadow-sm"
-                  >
-                    <Eye className="w-4 h-4 mr-2" /> Review Case
-                  </button>
+            return (
+              <Card key={c._id} className={`p-6 border-l-4 ${borderClass} hover:shadow-md transition-all`}>
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                  <div className="flex items-start space-x-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 font-extrabold text-lg ${
+                      isCleared ? 'bg-green-100 text-green-700' : isPenalized ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {c.aiMatch || 90}%
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        {isCleared ? (
+                          <span className="bg-green-100 text-green-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full uppercase flex items-center">
+                            <CheckCircle2 className="w-3 h-3 mr-1" /> Cleared
+                          </span>
+                        ) : isPenalized ? (
+                          <span className="bg-red-100 text-red-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full uppercase flex items-center">
+                            <AlertOctagon className="w-3 h-3 mr-1" /> Penalized
+                          </span>
+                        ) : (
+                          <span className="bg-yellow-100 text-yellow-800 text-xs font-extrabold px-2.5 py-0.5 rounded-full uppercase flex items-center">
+                            <AlertTriangle className="w-3 h-3 mr-1" /> Pending Audit
+                          </span>
+                        )}
+                        <span className="bg-gray-100 text-gray-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                          {c.classCode}
+                        </span>
+                        <span className="text-xs font-bold text-gray-400">• {c.semester || 'SP26'}</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-[#1B2559]">
+                        {c.studentFullName} <span className="text-gray-500 text-sm font-medium">({c.studentCode})</span>
+                      </h3>
+                      <p className="text-sm font-bold text-[#4318FF] mt-0.5">{c.subjectName}</p>
+                      <p className="text-sm text-gray-600 mt-2 bg-gray-50 p-3 rounded-xl border border-gray-100 font-medium">
+                        <span className="font-bold text-gray-700 mr-1">AI Audit Flag:</span>
+                        {c.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3 shrink-0 self-end lg:self-center">
+                    <button 
+                      onClick={() => setSelectedCase(c)}
+                      className="bg-[#1B2559] text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#2A3673] transition-all flex items-center shadow-sm"
+                    >
+                      <Eye className="w-4 h-4 mr-2" /> {c.isResolved ? 'View Details' : 'Review Case'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </Card>
-          ))
+              </Card>
+            );
+          })
         )}
       </div>
 

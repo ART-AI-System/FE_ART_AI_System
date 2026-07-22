@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, Navigate } from 'react-router-dom';
 import LecturerSidebar from '../components/layout/LecturerSidebar';
 import LecturerTopbar from '../components/layout/LecturerTopbar';
+import { useAuth } from '../context/AuthContext';
 
 const LecturerLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const location = useLocation();
+  const { user, loading } = useAuth();
 
   // Basic breadcrumb generation based on route for demo purposes
   const generateBreadcrumbs = () => {
@@ -23,6 +25,33 @@ const LecturerLayout = () => {
     }
     return 'Lecturer Dashboard';
   };
+
+  if (loading) return null;
+
+  const rawUser = (() => {
+    try {
+      const raw = localStorage.getItem('user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const effectiveUser = user || rawUser;
+  if (!effectiveUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const role = (effectiveUser.role || '').toLowerCase();
+  if (role !== 'lecturer') {
+    if (role === 'subject_head' || role === 'headsubject') {
+      return <Navigate to="/subject-head/dashboard" replace />;
+    }
+    if (role === 'admin') {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
+    return <Navigate to="/student/home" replace />;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F4F7FE] font-inter">

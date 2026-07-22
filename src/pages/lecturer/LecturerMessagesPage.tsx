@@ -118,16 +118,26 @@ const LecturerMessagesPage = () => {
 
   const activeConversation = useMemo(() => conversations.find(c => c._id === activeRoomId), [conversations, activeRoomId]);
   
-  const currentUserId = String((user as any)?._id || user?.id || '');
+  const getIdStr = (val: any): string => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object') {
+      if (val._id) return String(val._id);
+      if (val.id) return String(val.id);
+    }
+    return String(val);
+  };
+
+  const currentUserId = getIdStr(user);
 
   const otherMember = useMemo(() => {
     let member = null;
     if (activeRoomId?.startsWith('temp_')) {
       const contactId = activeRoomId.replace('temp_', '');
-      member = contacts.find(c => String(c._id) === String(contactId)) || globalSearchResults.find(c => String(c._id) === String(contactId));
+      member = contacts.find(c => getIdStr(c) === contactId) || globalSearchResults.find(c => getIdStr(c) === contactId);
     } else if (activeConversation && activeConversation.type === 'direct') {
-      const otherMemberId = activeConversation.memberIds.find(id => String(id) !== currentUserId);
-      member = contacts.find(c => String(c._id) === String(otherMemberId));
+      const otherMemberId = activeConversation.memberIds.find(id => getIdStr(id) !== currentUserId);
+      member = contacts.find(c => getIdStr(c) === getIdStr(otherMemberId));
     }
     return member;
   }, [activeRoomId, activeConversation, contacts, globalSearchResults, currentUserId]);
@@ -139,8 +149,8 @@ const LecturerMessagesPage = () => {
       return 'group chat'.includes(searchQuery.toLowerCase());
     }
     
-    const otherId = conv.memberIds.find(id => String(id) !== currentUserId);
-    const contact = contacts.find(c => String(c._id) === String(otherId));
+    const otherId = conv.memberIds.find(id => getIdStr(id) !== currentUserId);
+    const contact = contacts.find(c => getIdStr(c) === getIdStr(otherId));
     if (!contact) return false;
     
     const query = searchQuery.toLowerCase();
@@ -152,7 +162,7 @@ const LecturerMessagesPage = () => {
   }), [conversations, searchQuery, contacts, currentUserId]);
 
   const searchResultContacts = useMemo(() => searchQuery.trim() ? contacts.filter(contact => {
-    const hasExistingConv = conversations.some(conv => conv.type === 'direct' && conv.memberIds.map(String).includes(String(contact._id)));
+    const hasExistingConv = conversations.some(conv => conv.type === 'direct' && conv.memberIds.map(getIdStr).includes(getIdStr(contact)));
     if (hasExistingConv) return false;
 
     const query = searchQuery.toLowerCase();
@@ -163,8 +173,8 @@ const LecturerMessagesPage = () => {
     return nameMatch || codeMatch || userMatch;
   }) : [], [searchQuery, contacts, conversations]);
 
-  const combinedNewContacts = useMemo(() => Array.from(new Map([...searchResultContacts, ...globalSearchResults].map(c => [String(c._id), c])).values()).filter(contact => {
-    return !conversations.some(conv => conv.type === 'direct' && conv.memberIds.map(String).includes(String(contact._id)));
+  const combinedNewContacts = useMemo(() => Array.from(new Map([...searchResultContacts, ...globalSearchResults].map(c => [getIdStr(c), c])).values()).filter(contact => {
+    return !conversations.some(conv => conv.type === 'direct' && conv.memberIds.map(getIdStr).includes(getIdStr(contact)));
   }), [searchResultContacts, globalSearchResults, conversations]);
 
   return (
@@ -208,8 +218,8 @@ const LecturerMessagesPage = () => {
                   contactName = 'Group Chat';
                   avatarUrl = `https://ui-avatars.com/api/?name=GC&background=FFF7ED&color=F97316`;
                 } else {
-                  const otherId = conv.memberIds.find(id => String(id) !== currentUserId);
-                  const contact = contacts.find(c => String(c._id) === String(otherId));
+                  const otherId = conv.memberIds.find(id => getIdStr(id) !== currentUserId);
+                  const contact = contacts.find(c => getIdStr(c) === getIdStr(otherId));
                   if (contact) {
                     contactName = contact.fullName;
                     avatarUrl = contact.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.fullName)}&background=F26F21&color=fff`;
@@ -339,8 +349,7 @@ const LecturerMessagesPage = () => {
                   )}
 
                   {messages.map((msg) => {
-                    const currentUserId = String((user as any)?._id || user?.id || '');
-                    const msgSenderId = String((msg.senderId as any)?._id || msg.senderId || '');
+                    const msgSenderId = getIdStr(msg.senderId);
                     const isMe = Boolean(currentUserId && msgSenderId && currentUserId === msgSenderId);
                     const time = new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                     const isRead = msg.readBy && msg.readBy.length > 1;

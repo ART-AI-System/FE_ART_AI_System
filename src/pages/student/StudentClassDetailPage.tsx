@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronDown, FileText, CheckCircle2, FileVideo, Circle, ArrowRight, Lock, Plus } from 'lucide-react';
+import { ArrowLeft, ChevronDown, FileText, CheckCircle2, FileVideo, Circle, ArrowRight, Lock, Plus, MessageSquare } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { ROUTES } from '../../config/routes';
 import { Card } from '../../components/common/Card';
@@ -11,15 +11,19 @@ const ClassDetailPage = () => {
   const [sessions, setSessions] = useState<any[]>([]);
   const [classOverview, setClassOverview] = useState<any>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [classGrades, setClassGrades] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       if (!id) return;
       try {
-        const [sessionRes, classRes, assignmentRes]: any = await Promise.all([
+        const [sessionRes, classRes, assignmentRes, submissionRes, gradesRes]: any = await Promise.all([
           axiosClient.get(`/classes/${id}/sessions?limit=100`),
           axiosClient.get(`/classes/${id}`).catch(() => ({ result: null })),
-          axiosClient.get(`/classes/${id}/grade-items`).catch(() => ({ result: [] }))
+          axiosClient.get(`/classes/${id}/grade-items`).catch(() => ({ result: [] })),
+          axiosClient.get(`/students/me/submissions`).catch(() => ({ result: [] })),
+          axiosClient.get(`/classes/${id}/grades`).catch(() => ({ result: [] }))
         ]);
         
         let fetchedSessions = sessionRes.result?.docs || [];
@@ -32,6 +36,7 @@ const ClassDetailPage = () => {
           setClassOverview(classRes.result);
         }
         setAssignments(assignmentRes?.result || []);
+        setSubmissions(submissionRes?.result || []);
       } catch (err) {
         console.error('Failed to load class details:', err);
       }
@@ -45,6 +50,10 @@ const ClassDetailPage = () => {
         ? prev.filter(id => id !== slotId)
         : [...prev, slotId]
     );
+  };
+
+  const getSubmissionForAssignment = (assignmentId: string) => {
+    return submissions.find(s => s.gradeItemId === assignmentId);
   };
 
   return (
@@ -114,25 +123,66 @@ const ClassDetailPage = () => {
                         {assignments.filter((a: any) => a.sessionId === session._id).length > 0 ? (
                           <div className="mt-4 space-y-3">
                             <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Assignments</h5>
-                            {assignments.filter((a: any) => a.sessionId === session._id).map((assignment: any) => (
-                              <div key={assignment._id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center justify-between">
-                                <div className="flex items-center">
-                                  <div className="w-10 h-10 bg-orange-50 rounded-xl flex flex-col items-center justify-center mr-4">
-                                    <FileText className="w-5 h-5 text-orange-500" />
+                            {assignments.filter((a: any) => a.sessionId === session._id).map((assignment: any) => {
+                              const submission = getSubmissionForAssignment(assignment._id);
+                              const isGraded = submission?.status === 'GRADED';
+                              
+                              return (
+                                <div key={assignment._id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex flex-col space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center">
+                                      <div className="w-10 h-10 bg-orange-50 rounded-xl flex flex-col items-center justify-center mr-4">
+                                        <FileText className="w-5 h-5 text-orange-500" />
+                                      </div>
+                                      <div>
+                                        <p className="font-bold text-[#1B2559]">{assignment.title}</p>
+                                        <div className="flex items-center text-xs font-medium text-gray-500 space-x-2">
+                                          <span>Due: {new Date(assignment.deadline).toLocaleDateString()}</span>
+                                          {submission && (
+                                            <>
+                                              <span>•</span>
+                                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                                isGraded ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                                              }`}>
+                                                {isGraded ? 'GRADED' : 'SUBMITTED'}
+                                              </span>
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <Link 
+                                      to={`/student/assignments/${assignment._id}/submit`} 
+                                      className="px-4 py-2 bg-gradient-to-br from-[#F26F21] to-[#F79C65] text-white rounded-lg text-xs font-bold shadow-md shadow-orange-200 hover:opacity-90 transition-opacity flex items-center shrink-0"
+                                    >
+                                      View <ArrowRight className="w-3 h-3 ml-1" />
+                                    </Link>
                                   </div>
-                                  <div>
-                                    <p className="font-bold text-[#1B2559]">{assignment.title}</p>
-                                    <p className="text-xs font-medium text-gray-500">Due: {new Date(assignment.deadline).toLocaleDateString()}</p>
-                                  </div>
+                                  
+                                  {(() => {
+                                    const gradeData = classGrades.find(g => g.submissionId === submission?._id);
+                                    return isGraded && gradeData ? (
+                                      <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                        <div className="flex justify-between items-start mb-2">
+                                          <div className="flex items-center space-x-2">
+                                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                                              <span className="text-sm font-extrabold text-green-700">{gradeData.score}</span>
+                                            </div>
+                                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Score</span>
+                                          </div>
+                                        </div>
+                                        {gradeData.feedback && (
+                                          <div className="mt-2 text-sm text-gray-600 bg-white p-3 rounded border border-gray-100 flex items-start">
+                                            <MessageSquare className="w-4 h-4 text-gray-400 mr-2 mt-0.5 shrink-0" />
+                                            <p className="italic">"{gradeData.feedback}"</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : null;
+                                  })()}
                                 </div>
-                                <Link 
-                                  to={`/student/assignments/${assignment._id}/submit`} 
-                                  className="px-4 py-2 bg-gradient-to-br from-[#F26F21] to-[#F79C65] text-white rounded-lg text-xs font-bold shadow-md shadow-orange-200 hover:opacity-90 transition-opacity flex items-center"
-                                >
-                                  View <ArrowRight className="w-3 h-3 ml-1" />
-                                </Link>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="mt-4 p-3 bg-white border border-gray-100 rounded-xl shadow-sm text-xs text-gray-400 text-center font-medium">

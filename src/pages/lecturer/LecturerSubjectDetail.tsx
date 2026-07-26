@@ -264,14 +264,13 @@ const LecturerSubjectDetail = () => {
                 <h2 className="text-xl font-extrabold text-[#1B2559]">Global Assignments</h2>
                 <p className="text-sm font-medium text-gray-500 mt-1">Create an assignment and push it to multiple classes simultaneously.</p>
               </div>
-              {/* HERE IS THE CREATE ASSIGNMENT BUTTON FROM THE MOCKUP */}
               <Link to={`/lecturer/assignments/create?classId=${subjectId}`} className="bg-[#F26F21] hover:bg-[#E86115] text-white px-5 py-2.5 rounded-xl font-bold shadow-md shadow-orange-500/20 transition-all flex items-center">
                 <Plus className="w-5 h-5 mr-2" /> Create Global Assignment
               </Link>
             </div>
 
             <div className="space-y-4">
-              {assignments.length > 0 ? assignments.map((assignment, idx) => (
+              {assignments.filter(a => a.type !== 'test').length > 0 ? assignments.filter(a => a.type !== 'test').map((assignment, idx) => (
                 <div key={assignment._id || idx} className="bg-white rounded-[20px] p-6 border border-gray-100 shadow-sm flex items-center justify-between group">
                   <div className="flex items-center">
                     <div className="w-12 h-12 rounded-xl bg-orange-50 text-[#F26F21] flex items-center justify-center mr-4">
@@ -323,17 +322,52 @@ const LecturerSubjectDetail = () => {
                 <p className="text-sm font-medium text-gray-500 mt-1">Manage question banks and create tests for this subject.</p>
               </div>
               <div className="flex space-x-3">
-                <button className="bg-white border border-gray-200 hover:border-[#F26F21] hover:text-[#F26F21] text-[#1B2559] px-5 py-2.5 rounded-xl font-bold shadow-sm transition-all flex items-center">
-                  <UploadCloud className="w-4 h-4 mr-2" /> Import CSV
-                </button>
                 <Link to="/lecturer/tests/create" className="bg-[#F26F21] hover:bg-[#E86115] text-white px-5 py-2.5 rounded-xl font-bold shadow-md shadow-orange-500/20 transition-all flex items-center">
                   <Plus className="w-5 h-5 mr-2" /> Create Test
                 </Link>
               </div>
             </div>
 
-            <div className="text-center text-gray-500 font-medium p-8 bg-white rounded-[24px] shadow-sm border border-gray-100">
-              No tests created yet.
+            <div className="space-y-4">
+              {assignments.filter(a => a.type === 'test').length > 0 ? assignments.filter(a => a.type === 'test').map((assignment, idx) => (
+                <div key={assignment._id || idx} className="bg-white rounded-[20px] p-6 border border-gray-100 shadow-sm flex items-center justify-between group">
+                  <div className="flex items-center">
+                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#4318FF] flex items-center justify-center mr-4">
+                      <HelpCircle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-[#1B2559] text-lg">{assignment.title}</h3>
+                      <div className="flex items-center text-sm font-medium text-gray-500 mt-1">
+                        <Calendar className="w-4 h-4 mr-1" /> Duration: {assignment.duration || 60} mins
+                        <span className="mx-3 text-gray-300">|</span>
+                        <Copy className="w-4 h-4 mr-1" /> Points: {assignment.totalPoints || 10}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <Link to={`/lecturer/tests/${assignment._id}/edit`} className="p-2 text-gray-400 hover:text-[#4318FF] transition-colors"><Edit2 className="w-5 h-5" /></Link>
+                    <button 
+                      onClick={async () => {
+                        if (window.confirm('Are you sure you want to delete this test?')) {
+                          try {
+                            await axiosClient.delete(`/grade-items/standalone/${assignment._id}`);
+                            setAssignments(prev => prev.filter(a => a._id !== assignment._id));
+                          } catch (error) {
+                            console.error('Failed to delete test:', error);
+                            alert('Failed to delete test');
+                          }
+                        }
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Delete Test"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-gray-500 text-center py-10 bg-white rounded-[24px] shadow-sm border border-gray-100">No tests created yet.</div>
+              )}
             </div>
           </div>
         )}

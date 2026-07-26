@@ -31,6 +31,7 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
   const currentStudentId = user?.id || (user as any)?.studentId || (user as any)?._id || '';
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
   const [gradeResult, setGradeResult] = useState<any>(null);
+  const [unavailableMembers, setUnavailableMembers] = useState<string[]>([]);
   
   // AI Interaction state from the form
   const [aiData, setAiData] = useState<any>({});
@@ -70,6 +71,13 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
   useEffect(() => {
     if (assignment?.classId) {
       classService.getClassById(assignment.classId).then((res) => setClassData(res)).catch(console.error);
+    }
+    if (assignment?.isGroupAssignment && assignment._id) {
+      import('../../api/axiosClient').then((m) => {
+        m.default.get(`/assignments/${assignment._id}/grouped-students`)
+          .then((res: any) => setUnavailableMembers(res.result || res.data?.result || []))
+          .catch(console.error);
+      });
     }
   }, [assignment]);
 
@@ -222,32 +230,45 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
             {assignment?.isGroupAssignment && classData && classData.students && (
               <div className="mt-6 p-4 border border-gray-100 rounded-xl bg-gray-50/80">
                 <h4 className="text-sm font-bold text-[#1B2559] mb-3">Group Members</h4>
-                <p className="text-xs text-gray-500 mb-3">Select your group members. You are automatically selected as the representative submitter.</p>
+                <p className="text-xs text-gray-500 mb-3">Select your group members. You are automatically selected as the representative submitter. Students already in a group cannot be selected.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-48 overflow-y-auto pr-2">
-                  {Array.from(new Map(classData.students.map((s: any) => [s.studentId, s])).values()).map((student: any) => {
-                    const isCurrentUser = student.studentId === currentStudentId;
-                    return (
-                    <label key={student.studentId} className={`flex items-center space-x-3 bg-white p-3 rounded-lg border cursor-pointer transition-colors ${isCurrentUser ? 'border-[#4318FF] bg-blue-50/30' : 'border-gray-200 hover:border-[#4318FF]'}`}>
-                      <input 
-                        type="checkbox" 
-                        className="rounded text-[#4318FF] focus:ring-[#4318FF] w-4 h-4 disabled:opacity-50"
-                        checked={isCurrentUser || groupMembers.includes(student.studentId)}
-                        disabled={isCurrentUser}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setGroupMembers([...groupMembers, student.studentId]);
-                          } else {
-                            setGroupMembers(groupMembers.filter(id => id !== student.studentId));
-                          }
-                        }}
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-gray-800">{student.fullName} {isCurrentUser && '(You)'}</span>
-                        <span className="text-xs text-gray-500">{student.studentCode}</span>
-                      </div>
-                    </label>
-                    );
-                  })}
+                  {(() => {
+                    const trulyUnavailable = unavailableMembers.filter(id => {
+                      if (!submission) return true;
+                      if (submission.studentId === id || submission.studentId?._id === id) return false;
+                      const initialMembers = submission.groupMembers || [];
+                      return !initialMembers.some((m: any) => (m._id || m) === id);
+                    });
+
+                    return Array.from(new Map(classData.students.map((s: any) => [s.studentId, s])).values()).map((student: any) => {
+                      const isCurrentUser = student.studentId === currentStudentId;
+                      const isUnavailable = trulyUnavailable.includes(student.studentId) && !isCurrentUser;
+                      
+                      return (
+                      <label key={student.studentId} className={`flex items-center space-x-3 p-3 rounded-lg border transition-colors ${isCurrentUser ? 'border-[#4318FF] bg-blue-50/30' : isUnavailable ? 'bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed' : 'bg-white border-gray-200 hover:border-[#4318FF] cursor-pointer'}`}>
+                        <input 
+                          type="checkbox" 
+                          className="rounded text-[#4318FF] focus:ring-[#4318FF] w-4 h-4 disabled:opacity-50"
+                          checked={isCurrentUser || groupMembers.includes(student.studentId)}
+                          disabled={isCurrentUser || isUnavailable}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setGroupMembers([...groupMembers, student.studentId]);
+                            } else {
+                              setGroupMembers(groupMembers.filter(id => id !== student.studentId));
+                            }
+                          }}
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-gray-800">
+                            {student.fullName} {isCurrentUser && '(You)'} {isUnavailable && <span className="text-red-500 font-bold ml-1 text-[10px] uppercase">(Grouped)</span>}
+                          </span>
+                          <span className="text-xs text-gray-500">{student.studentCode}</span>
+                        </div>
+                      </label>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}
@@ -318,6 +339,27 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
                   "{gradeResult.feedback || 'No additional feedback provided.'}"
                 </p>
               </div>
+            </div>
+          )}
+
+          {assignment?.isGroupAssignment && submission?.groupMembers?.length > 0 && classData?.students && (
+            <div className="w-full max-w-md bg-white rounded-xl border border-green-200 p-4 mb-6 text-left shadow-sm">
+              <span className="text-sm font-bold text-gray-500 uppercase mb-3 block border-b pb-2">Group Members</span>
+              <ul className="space-y-2">
+                {submission.groupMembers.map((memberId: string | any) => {
+                  const idStr = typeof memberId === 'object' ? memberId._id || memberId.studentId : memberId;
+                  const studentInfo = classData.students.find((s: any) => s.studentId === idStr);
+                  const isSubmitter = idStr === (submission.studentId?._id || submission.studentId);
+                  return (
+                    <li key={idStr} className="text-sm font-medium text-gray-700 flex items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
+                      <div className={`w-2 h-2 rounded-full mr-3 ${isSubmitter ? 'bg-orange-500' : 'bg-green-500'}`}></div>
+                      <span className="font-bold">{studentInfo ? studentInfo.fullName : 'Unknown Student'}</span>
+                      <span className="text-xs text-gray-400 ml-2">({studentInfo?.studentCode || 'N/A'})</span>
+                      {isSubmitter && <span className="ml-auto text-[10px] font-black uppercase text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">Submitter</span>}
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           )}
 

@@ -121,22 +121,27 @@ const ClassDetailPage = () => {
                         </div>
                         
                         {assignments.filter((a: any) => a.sessionId === session._id).length > 0 ? (
-                          <div className="mt-4 space-y-3">
-                            <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Assignments</h5>
-                            {assignments.filter((a: any) => a.sessionId === session._id).map((assignment: any) => {
-                              const submission = getSubmissionForAssignment(assignment._id);
-                              const isGraded = submission?.status === 'GRADED';
-                              
-                              return (
-                                <div key={assignment._id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex flex-col space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center">
-                                      <div className="w-10 h-10 bg-orange-50 rounded-xl flex flex-col items-center justify-center mr-4">
-                                        <FileText className="w-5 h-5 text-orange-500" />
-                                      </div>
-                                      <div>
-                                        <p className="font-bold text-[#1B2559]">{assignment.title}</p>
-                                        <div className="flex items-center text-xs font-medium text-gray-500 space-x-2">
+                            <div className="mt-4 space-y-3">
+                              <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Assignments & Tests</h5>
+                              {assignments.filter((a: any) => a.sessionId === session._id).map((assignment: any) => {
+                                const submission = getSubmissionForAssignment(assignment._id);
+                                const isGraded = submission?.status === 'GRADED';
+                                const isTest = assignment.type === 'test';
+                                
+                                return (
+                                  <div key={assignment._id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex flex-col space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center">
+                                        <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center mr-4 ${isTest ? 'bg-purple-50' : 'bg-orange-50'}`}>
+                                          {isTest ? (
+                                            <CheckCircle2 className="w-5 h-5 text-purple-500" />
+                                          ) : (
+                                            <FileText className="w-5 h-5 text-orange-500" />
+                                          )}
+                                        </div>
+                                        <div>
+                                          <p className="font-bold text-[#1B2559]">{assignment.title}</p>
+                                          <div className="flex items-center text-xs font-medium text-gray-500 space-x-2">
                                           <span>Due: {new Date(assignment.deadline).toLocaleDateString()}</span>
                                           {submission && (
                                             <>
@@ -151,12 +156,22 @@ const ClassDetailPage = () => {
                                         </div>
                                       </div>
                                     </div>
-                                    <Link 
-                                      to={`/student/assignments/${assignment._id}/submit`} 
-                                      className="px-4 py-2 bg-gradient-to-br from-[#F26F21] to-[#F79C65] text-white rounded-lg text-xs font-bold shadow-md shadow-orange-200 hover:opacity-90 transition-opacity flex items-center shrink-0"
-                                    >
-                                      View <ArrowRight className="w-3 h-3 ml-1" />
-                                    </Link>
+                                    {submission ? (
+                                      <button 
+                                        disabled
+                                        className="px-4 py-2 bg-gray-300 text-white rounded-lg text-sm font-bold flex items-center cursor-not-allowed"
+                                      >
+                                        Submitted <ArrowRight className="w-4 h-4 ml-1 opacity-50" />
+                                      </button>
+                                    ) : (
+                                      <Link 
+                                        to={assignment.type === 'test' ? `/student/assignments/${assignment._id}/test` : `/student/assignments/${assignment._id}/submit`}
+                                        state={{ returnUrl: location.pathname }}
+                                        className="px-4 py-2 bg-[#F26F21] text-white rounded-lg text-sm font-bold shadow-md shadow-orange-200 hover:bg-[#E86115] transition-colors flex items-center"
+                                      >
+                                        Start <ArrowRight className="w-4 h-4 ml-1" />
+                                      </Link>
+                                    )}
                                   </div>
                                   
                                   {(() => {

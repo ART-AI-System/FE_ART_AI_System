@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, ChevronRight, Eye, Save, Settings2, Clock, 
-  ListChecks, Plus, Copy, Trash2, CheckCircle2, X 
+  ListChecks, Plus, Copy, Trash2, CheckCircle2, X, FileText 
 } from 'lucide-react';
 import { ROUTES } from '../../config/routes';
 import axiosClient from '../../api/axiosClient';
@@ -20,6 +20,9 @@ const LecturerCreateTestPage = () => {
   const [totalPoints, setTotalPoints] = useState(100);
   const [showResultImmediately, setShowResultImmediately] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [randomCount, setRandomCount] = useState(50);
+  const [isRandomPerStudent, setIsRandomPerStudent] = useState(false);
 
   const handleSaveTest = async () => {
     if (!classId) {
@@ -28,45 +31,64 @@ const LecturerCreateTestPage = () => {
     }
 
     setSaving(true);
-    const payload: any = {
-      title,
-      duration: Number(duration),
-      totalPoints: Number(totalPoints),
-      showResultImmediately,
-      questions: [
-        {
-          type: 'multiple-choice',
-          text: 'What is the lifecycle of a Servlet?',
-          points: 50,
-          options: [
-            { text: 'init(), service(), destroy()', isCorrect: true },
-            { text: 'start(), run(), stop()', isCorrect: false }
-          ]
-        },
-        {
-          type: 'multiple-choice',
-          text: 'Which of the following are valid JSP implicit objects?',
-          points: 50,
-          options: [
-            { text: 'request and session', isCorrect: true },
-            { text: 'responseWriter and system', isCorrect: false }
-          ]
-        }
-      ]
-    };
-
-    if (sessionId) {
-      payload.sessionId = sessionId;
-    }
-
+    
     try {
-      await axiosClient.post(`/classes/${classId}/grade-items`, payload);
-      alert('Test created and published successfully!');
-      navigate(-1);
-    } catch (err) {
+      if (file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('title', title);
+        formData.append('duration', duration.toString());
+        formData.append('totalPoints', totalPoints.toString());
+        formData.append('showResultImmediately', showResultImmediately.toString());
+        formData.append('randomCount', randomCount.toString());
+        formData.append('isRandomPerStudent', isRandomPerStudent.toString());
+        if (sessionId) formData.append('sessionId', sessionId);
+
+        await axiosClient.post(`/classes/${classId}/grade-items/import-test`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        alert('Test imported and published successfully!');
+        navigate(-1);
+      } else {
+        const payload: any = {
+          title,
+          type: 'test',
+          duration: Number(duration),
+          totalPoints: Number(totalPoints),
+          showResultImmediately,
+          questions: [
+            {
+              type: 'multiple-choice',
+              text: 'What is the lifecycle of a Servlet?',
+              points: 50,
+              options: [
+                { text: 'init(), service(), destroy()', isCorrect: true },
+                { text: 'start(), run(), stop()', isCorrect: false }
+              ]
+            },
+            {
+              type: 'multiple-choice',
+              text: 'Which of the following are valid JSP implicit objects?',
+              points: 50,
+              options: [
+                { text: 'request and session', isCorrect: true },
+                { text: 'responseWriter and system', isCorrect: false }
+              ]
+            }
+          ]
+        };
+
+        if (sessionId) {
+          payload.sessionId = sessionId;
+        }
+
+        await axiosClient.post(`/classes/${classId}/grade-items`, payload);
+        alert('Test created and published successfully!');
+        navigate(-1);
+      }
+    } catch (err: any) {
       console.error('Failed to create test via API', err);
-      alert('Test created and saved successfully!');
-      navigate(-1);
+      alert(err?.response?.data?.message || 'Failed to create test! Please check the file format or try again later.');
     } finally {
       setSaving(false);
     }
@@ -122,7 +144,13 @@ const LecturerCreateTestPage = () => {
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Test Title</label>
-                <input type="text" placeholder="e.g. Midterm Exam - Spring 2026" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#F26F21] focus:ring-1 focus:ring-[#F26F21] font-medium transition-all text-[#1B2559]" />
+                <input 
+                  type="text" 
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. Midterm Exam - Spring 2026" 
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#F26F21] focus:ring-1 focus:ring-[#F26F21] font-medium transition-all text-[#1B2559]" 
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -150,6 +178,56 @@ const LecturerCreateTestPage = () => {
                 </label>
                 <p className="text-xs text-gray-500 mt-2 md:ml-13">If disabled, students will only see "Submitted Successfully" and must wait for manual grading release.</p>
               </div>
+            </div>
+          </div>
+
+          {/* Import Question Bank */}
+          <div className="bg-white rounded-[24px] p-6 md:p-8 shadow-sm border border-gray-100">
+            <div className="flex items-center mb-6 border-b border-gray-100 pb-4">
+              <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mr-3">
+                <FileText className="w-5 h-5" />
+              </div>
+              <h2 className="text-xl font-extrabold text-[#1B2559]">Import Question Bank (Word .docx)</h2>
+            </div>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Upload File</label>
+                <input 
+                  type="file" 
+                  accept=".docx"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#F26F21] font-medium"
+                />
+                <p className="text-xs text-gray-500 mt-2">Format: "1. Question text" followed by "A. Option", "B. Option". Correct answer should be bolded or specified at the end with "Đáp án: A".</p>
+              </div>
+
+              {file && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Number of Random Questions to Select</label>
+                  <input 
+                    type="number" 
+                    value={randomCount}
+                    onChange={(e) => setRandomCount(Number(e.target.value))}
+                    className="w-full max-w-xs bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#F26F21] font-medium text-[#1B2559]" 
+                  />
+                  <p className="text-xs text-gray-500 mt-2">We will randomly select this many questions from the uploaded file.</p>
+                  
+                  <label className="flex items-start md:items-center space-x-3 cursor-pointer mt-4">
+                    <div className="relative shrink-0 mt-1 md:mt-0">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={isRandomPerStudent}
+                        onChange={(e) => setIsRandomPerStudent(e.target.checked)}
+                      />
+                      <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#F26F21]"></div>
+                    </div>
+                    <span className="text-sm font-bold text-gray-700">Randomize differently for each student</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mt-2 md:ml-13">If enabled, each student will receive a unique random set of questions. If disabled, all students get the same random set.</p>
+                </div>
+              )}
             </div>
           </div>
 

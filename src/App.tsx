@@ -19,6 +19,7 @@ import LecturerAssignmentCreate from './pages/lecturer/LecturerAssignmentCreate'
 import LecturerSubmissionList from './pages/lecturer/LecturerSubmissionList';
 import LecturerCreateTestPage from './pages/lecturer/LecturerCreateTestPage';
 import LecturerEditSlotPage from './pages/lecturer/LecturerEditSlotPage';
+import StudentTakeTestPage from './pages/student/StudentTakeTestPage';
 import ClassGradebook from './pages/lecturer/ClassGradebook';
 import StudentMessagesPage from './pages/student/StudentMessagesPage';
 import LecturerMessagesPage from './pages/lecturer/LecturerMessagesPage';
@@ -52,6 +53,7 @@ function AppRoutes() {
         <Route path="assignments">
           <Route index element={<StudentAssignments />} />
           <Route path=":assignmentId/submit" element={<StudentSubmission />} />
+          <Route path=":assignmentId/test" element={<StudentTakeTestPage />} />
           <Route path="success" element={<StudentSubmitSuccess />} />
         </Route>
         

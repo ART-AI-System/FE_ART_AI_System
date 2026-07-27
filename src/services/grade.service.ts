@@ -5,6 +5,9 @@ export interface GradePayload {
   maxScore: number;
   feedback?: string;
   studentId?: string;
+  rubricScores?: Array<{ criterionId: string; name: string; score: number; maxPoints: number; comment?: string }>;
+  aiAdvisoryRunId?: string;
+  lecturerAdjustmentReason?: string;
 }
 
 export const gradeService = {

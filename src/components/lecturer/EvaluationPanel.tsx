@@ -7,7 +7,17 @@ import { reviewService } from '../../services/review.service';
 interface EvaluationPanelProps {
   submissionId?: string;
   aiEvaluation?: any;
-  onChange?: (data: { score: number; feedback: string; reviewStatus: string; reviewComment: string }) => void;
+  maxScore?: number;
+  rubric?: Array<{ id: string; name: string; description?: string; maxPoints: number }>;
+  onChange?: (data: {
+    score: number;
+    feedback: string;
+    reviewStatus: string;
+    reviewComment: string;
+    rubricScores: Array<{ criterionId: string; name: string; score: number; maxPoints: number; comment?: string }>;
+    aiAdvisoryRunId: string | undefined;
+    lecturerAdjustmentReason: string;
+  }) => void;
 }
 
 // ─── SHIMMERING SKELETON COMPONENTS ───
@@ -97,13 +107,12 @@ const SkeletonSynthesisBanner: React.FC = () => (
   </div>
 );
 
-const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvaluation, onChange }) => {
+const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvaluation, maxScore = 10, rubric = [], onChange }) => {
   const [activeTab, setActiveTab] = useState<'ai' | 'grade'>('ai');
-  const [aiReflectionScore, setAiReflectionScore] = useState(0);
-  const [decompositionScore, setDecompositionScore] = useState(0);
-  const [patternRecognitionScore, setPatternRecognitionScore] = useState(0);
-  const [abstractionScore, setAbstractionScore] = useState(0);
-  const [algorithmicThinkingScore, setAlgorithmicThinkingScore] = useState(0);
+  const [rubricScores, setRubricScores] = useState<Array<{ criterionId: string; name: string; score: number; maxPoints: number; comment?: string }>>([]);
+  const [legacyManualScore, setLegacyManualScore] = useState(0);
+  const [activeAdvisoryRunId, setActiveAdvisoryRunId] = useState<string | undefined>();
+  const [lecturerAdjustmentReason, setLecturerAdjustmentReason] = useState('');
   const [feedback, setFeedback] = useState('');
   
   // Review States
@@ -164,6 +173,7 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
         const data = res?.data?.result || res?.result || res?.data || res;
         currentRubric = data;
         setAiSuggestion(data);
+        setActiveAdvisoryRunId(data.advisoryRunId);
         setLoadingAiSuggestion(false);
         return data;
       })
@@ -197,11 +207,12 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
       .then((res: any) => {
         const data = res?.data?.result || res?.result || res?.data || res;
         setSynthesisResult(data);
+        setActiveAdvisoryRunId(data.advisoryRunId);
         if (data.gradingBreakdown) {
           setAiSuggestion((prev: any) => ({
             ...prev,
             suggestedScore: data.rawRubricScore,
-            maxScore: 10,
+            maxScore: data.maxScore || maxScore,
             rubricBreakdown: data.gradingBreakdown,
             suggestedFeedback: data.suggestedFeedback || data.synergyAnalysis,
             summary: data.summaryAnalysis || prev?.summary || 'Comprehensive analysis'
@@ -233,15 +244,24 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
   const handleFetchAiSuggestion = handleRunProgressiveAI;
   const handleRunAiAudit = handleRunProgressiveAI;
 
+  const applyAiBreakdown = (breakdown: any[]) => {
+    if (!Array.isArray(breakdown) || rubric.length === 0) return;
+    const byId = new Map(breakdown.map(item => [String(item.criterionId || ''), item]));
+    setRubricScores(rubric.map(criterion => {
+      const suggestion = byId.get(criterion.id);
+      return {
+        criterionId: criterion.id,
+        name: criterion.name,
+        score: Math.max(0, Math.min(criterion.maxPoints, Number(suggestion?.score || 0))),
+        maxPoints: criterion.maxPoints,
+        comment: suggestion?.comment || ''
+      };
+    }));
+  };
+
   const handleApplySynthesis = (syn: any) => {
     if (!syn) return;
-    const recScore = typeof syn.holisticRecommendedScore === 'number' ? syn.holisticRecommendedScore : syn.rawRubricScore || 8;
-    const ratio = recScore / 10;
-    setAiReflectionScore(Number((3 * ratio).toFixed(1)));
-    setDecompositionScore(Number((2 * ratio).toFixed(1)));
-    setPatternRecognitionScore(Number((1.5 * ratio).toFixed(1)));
-    setAbstractionScore(Number((1.5 * ratio).toFixed(1)));
-    setAlgorithmicThinkingScore(Number((2 * ratio).toFixed(1)));
+    applyAiBreakdown(syn.gradingBreakdown || syn.rubricBreakdown || []);
     
     // Combine feedback cleanly
     const feedbackParts = [];
@@ -255,26 +275,56 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
     }
     setFeedback(feedbackParts.join('\n'));
 
-    if (syn.auditStatus === 'RED') {
-      setReviewStatus('flagged');
-    } else if (syn.auditStatus === 'YELLOW') {
-      setReviewStatus('needs_revision');
-    } else {
-      setReviewStatus('reviewed');
-    }
+    // Copying an AI advisory must not make a lecturer review decision automatically.
   };
 
   const handleApplyAiSuggestion = () => handleApplySynthesis(synthesisResult || aiSuggestion);
 
-  const totalScore = (aiReflectionScore + decompositionScore + patternRecognitionScore + abstractionScore + algorithmicThinkingScore).toFixed(1);
+  const aiRecommendedScore = typeof synthesisResult?.holisticRecommendedScore === 'number'
+    ? synthesisResult.holisticRecommendedScore
+    : typeof aiSuggestion?.suggestedScore === 'number'
+      ? aiSuggestion.suggestedScore
+      : null;
+
+  const handleMatchAiRecommendedScore = () => {
+    if (aiRecommendedScore == null) return;
+    applyAiBreakdown(synthesisResult?.gradingBreakdown || aiSuggestion?.rubricBreakdown || []);
+    setActiveTab('grade');
+  };
+
+  const totalScore = (rubricScores.length > 0
+    ? rubricScores.reduce((sum, item) => sum + Number(item.score || 0), 0)
+    : legacyManualScore
+  ).toFixed(2);
+
+  useEffect(() => {
+    setRubricScores(current => rubric.map(criterion => {
+      const existing = current.find(item => item.criterionId === criterion.id);
+      return {
+        criterionId: criterion.id,
+        name: criterion.name,
+        score: Math.min(criterion.maxPoints, existing?.score || 0),
+        maxPoints: criterion.maxPoints,
+        comment: existing?.comment || ''
+      };
+    }));
+  }, [JSON.stringify(rubric)]);
 
   // Expose to parent
   useEffect(() => {
     if (onChange) {
-      onChange({ score: parseFloat(totalScore), feedback, reviewStatus, reviewComment });
+      onChange({
+        score: parseFloat(totalScore),
+        feedback,
+        reviewStatus,
+        reviewComment,
+        rubricScores,
+        aiAdvisoryRunId: activeAdvisoryRunId,
+        lecturerAdjustmentReason
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalScore, feedback, reviewStatus, reviewComment]);
+  }, [totalScore, feedback, reviewStatus, reviewComment, rubricScores, activeAdvisoryRunId, lecturerAdjustmentReason]);
 
   useEffect(() => {
     if (!submissionId) return;
@@ -299,12 +349,13 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
 
         const gradeData = (gradeRes as any)?.data?.result || (gradeRes as any)?.result || (gradeRes as any)?.data;
         if (gradeData) {
-          setAiReflectionScore(Math.min(3.0, gradeData.score * 0.3));
-          setDecompositionScore(Math.min(2.0, gradeData.score * 0.2));
-          setPatternRecognitionScore(Math.min(1.5, gradeData.score * 0.15));
-          setAbstractionScore(Math.min(1.5, gradeData.score * 0.15));
-          setAlgorithmicThinkingScore(Math.min(2.0, gradeData.score * 0.2));
+          if (Array.isArray(gradeData.rubricScores)) setRubricScores(gradeData.rubricScores);
+          if (!Array.isArray(gradeData.rubricScores) || gradeData.rubricScores.length === 0) {
+            setLegacyManualScore(Number(gradeData.score || 0));
+          }
           setFeedback(gradeData.feedback || '');
+          setActiveAdvisoryRunId(gradeData.aiAdvisoryRunId);
+          setLecturerAdjustmentReason(gradeData.lecturerAdjustmentReason || '');
         }
 
         const reviewData = (reviewRes as any)?.data?.result || (reviewRes as any)?.result || (reviewRes as any)?.data;
@@ -322,9 +373,17 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
     fetchAiData();
   }, [submissionId]);
 
-  const isFlagged = aiEvaluation?.flagStatus === 'FLAGGED' || (aiEvaluation?.aiMatchPercentage && aiEvaluation.aiMatchPercentage > 80);
-  const matchPct = aiEvaluation?.aiMatchPercentage || 0;
-  const discrepancyText = aiEvaluation?.discrepancies || 'System detected high AI signatures that do not align with student declarations.';
+  useEffect(() => {
+    if (!aiEvaluation) return;
+    if (aiEvaluation.aiGradingSuggestion) setAiSuggestion(aiEvaluation.aiGradingSuggestion);
+    if (aiEvaluation.aiAudit) setAiAuditResult(aiEvaluation.aiAudit);
+    if (aiEvaluation.aiHolisticSuggestion) setSynthesisResult(aiEvaluation.aiHolisticSuggestion);
+    setActiveAdvisoryRunId(aiEvaluation.latestAdvisoryRunIds?.holistic || aiEvaluation.latestAdvisoryRunIds?.grading);
+  }, [aiEvaluation]);
+
+  const isFlagged = aiEvaluation?.riskLevel === 'high' || aiAuditResult?.status === 'RED';
+  const matchPct = aiAuditResult?.consistencyScore ?? aiEvaluation?.transparencyScore ?? 0;
+  const discrepancyText = aiAuditResult?.summaryAnalysis || aiEvaluation?.summary || 'No AI transparency evaluation has been generated yet.';
 
   return (
     <div
@@ -588,7 +647,7 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
                 <option value="pending">⏳ Chờ duyệt (Pending)</option>
                 <option value="reviewed">✅ Đã duyệt - Minh bạch (Transparent)</option>
                 <option value="needs_revision">🔄 Cần xem xét lại (Needs Revision)</option>
-                <option value="flagged">🚩 Đánh dấu vi phạm (Flagged Plagiarism)</option>
+                <option value="flagged">🚩 Cần kiểm tra vi phạm (không phải kết luận tự động)</option>
               </select>
             </div>
             
@@ -655,7 +714,7 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
                   <div className="grid grid-cols-3 gap-2.5">
                     <div className="bg-white/10 p-2.5 rounded-xl border border-white/10 text-center">
                       <span className="text-[10px] text-indigo-200 block uppercase font-semibold tracking-wider">Điểm Rubric</span>
-                      <span className="text-lg font-black text-white">{synthesisResult.rawRubricScore || aiSuggestion?.suggestedScore || 0} <span className="text-xs font-normal text-indigo-300">/ 10</span></span>
+                      <span className="text-lg font-black text-white">{synthesisResult.rawRubricScore ?? aiSuggestion?.suggestedScore ?? 0} <span className="text-xs font-normal text-indigo-300">/ {synthesisResult.maxScore || maxScore}</span></span>
                     </div>
                     <div className={`p-2.5 rounded-xl border text-center ${
                       synthesisResult.auditStatus === 'RED' ? 'bg-red-500/20 border-red-400/40 text-red-200' :
@@ -663,11 +722,11 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
                       'bg-green-500/20 border-green-400/40 text-green-200'
                     }`}>
                       <span className="text-[10px] block uppercase font-semibold tracking-wider opacity-80">Độ Nhất Quán</span>
-                      <span className="text-lg font-black">{synthesisResult.consistencyScore || aiAuditResult?.consistencyScore || 100}% ({synthesisResult.auditStatus || 'GREEN'})</span>
+                      <span className="text-lg font-black">{synthesisResult.consistencyScore ?? aiAuditResult?.consistencyScore ?? 0}% ({synthesisResult.auditStatus || 'GREEN'})</span>
                     </div>
                     <div className="bg-gradient-to-br from-[#F26F21] to-amber-600 p-2.5 rounded-xl shadow-inner text-center">
                       <span className="text-[10px] text-amber-100 block uppercase font-semibold tracking-wider">Điểm Khuyến Nghị</span>
-                      <span className="text-lg font-black text-white">{synthesisResult.holisticRecommendedScore || aiSuggestion?.suggestedScore || 0} <span className="text-xs font-normal text-amber-200">/ 10</span></span>
+                      <span className="text-lg font-black text-white">{synthesisResult.holisticRecommendedScore ?? aiSuggestion?.suggestedScore ?? 0} <span className="text-xs font-normal text-amber-200">/ {synthesisResult.maxScore || maxScore}</span></span>
                     </div>
                   </div>
 
@@ -682,7 +741,7 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
                     onClick={() => handleApplySynthesis(synthesisResult)}
                     className="w-full py-3 bg-white text-[#1B2559] hover:bg-indigo-50 text-xs font-black rounded-xl transition-all shadow-md flex items-center justify-center select-none tracking-wide"
                   >
-                    <CheckCircle2 className="w-4 h-4 mr-2 text-green-600 shrink-0" /> ✅ Áp Dụng Toàn Bộ Điểm & Vấn Đáp Vào Khung Chấm
+                    <CheckCircle2 className="w-4 h-4 mr-2 text-green-600 shrink-0" /> Sao chép gợi ý vào bản nháp để giảng viên xem lại
                   </button>
 
                   <div className="flex justify-end pt-1">
@@ -716,7 +775,7 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
                     <p className="text-[11px] text-gray-500 mt-0.5">{aiSuggestion.summary || 'Tự động phân tích từ mã nguồn'}</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-xl font-black text-[#4318FF]">{aiSuggestion.suggestedScore} <span className="text-xs font-normal text-gray-400">/ 10</span></span>
+                    <span className="text-xl font-black text-[#4318FF]">{aiSuggestion.suggestedScore} <span className="text-xs font-normal text-gray-400">/ {aiSuggestion.maxScore || maxScore}</span></span>
                   </div>
                 </div>
 
@@ -747,55 +806,77 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
               <label className="block text-xs font-black uppercase tracking-wider text-gray-400 mb-2">Điểm Tổng Kết (Final Score)</label>
               <div className="inline-block px-8 py-3 bg-gray-50/80 border-2 border-[#4318FF]/20 rounded-2xl shadow-inner">
                 <span className="text-4xl font-black text-[#1B2559]">{totalScore}</span>
-                <span className="text-sm font-bold text-gray-400 ml-1">/ 10</span>
+                <span className="text-sm font-bold text-gray-400 ml-1">/ {maxScore}</span>
               </div>
+              {aiRecommendedScore != null && (
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleMatchAiRecommendedScore}
+                    className="inline-flex items-center px-4 py-2.5 rounded-xl bg-indigo-50 border border-indigo-200 text-[#4318FF] text-xs font-black hover:bg-indigo-100 transition-colors"
+                  >
+                    <Copy className="w-4 h-4 mr-2" /> Khớp từng tiêu chí với AI: {Number(aiRecommendedScore).toFixed(2)} / {maxScore}
+                  </button>
+                  <p className="text-[11px] text-gray-500">
+                    Chỉ sao chép vào bản nháp; giảng viên vẫn có thể kéo từng tiêu chí trước khi công bố.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-4">
-              <h4 className="text-xs font-black text-[#1B2559] uppercase tracking-wider">Điều Chỉnh Từng Tiêu Chí (Weight Sliders)</h4>
+              <h4 className="text-xs font-black text-[#1B2559] uppercase tracking-wider">Điều chỉnh từng tiêu chí rubric</h4>
               
               <div className="space-y-3.5">
-                <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                  <div className="flex justify-between text-xs font-bold text-[#1B2559] mb-1.5">
-                    <span>AI Reflection (30%)</span>
-                    <span className="text-[#4318FF] font-black">{aiReflectionScore.toFixed(1)} / 3.0</span>
+                {rubricScores.length === 0 ? (
+                  <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-800 space-y-3">
+                    <p>Bài cũ chưa có rubric học thuật nên AI grading bị khóa. Giảng viên vẫn có thể nhập điểm tổng thủ công.</p>
+                    <input
+                      type="number"
+                      min="0"
+                      max={maxScore}
+                      step="0.1"
+                      value={legacyManualScore}
+                      onChange={event => setLegacyManualScore(Math.max(0, Math.min(maxScore, Number(event.target.value))))}
+                      className="w-full bg-white border border-amber-300 rounded-lg px-3 py-2 text-lg font-black text-[#1B2559]"
+                    />
                   </div>
-                  <input type="range" min="0" max="3" step="0.5" value={aiReflectionScore} onChange={(e) => setAiReflectionScore(Number(e.target.value))} className="w-full accent-[#4318FF] cursor-pointer" />
-                </div>
-
-                <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                  <div className="flex justify-between text-xs font-bold text-[#1B2559] mb-1.5">
-                    <span>Decomposition (20%)</span>
-                    <span className="text-[#4318FF] font-black">{decompositionScore.toFixed(1)} / 2.0</span>
+                ) : rubricScores.map((criterion, index) => (
+                  <div key={criterion.criterionId} className="bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                    <div className="flex justify-between text-xs font-bold text-[#1B2559] mb-1.5">
+                      <span>{criterion.name}</span>
+                      <span className="text-[#4318FF] font-black">{criterion.score.toFixed(2)} / {criterion.maxPoints}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max={criterion.maxPoints}
+                      step="0.1"
+                      value={criterion.score}
+                      onChange={(event) => setRubricScores(current => current.map((item, itemIndex) =>
+                        itemIndex === index ? { ...item, score: Number(event.target.value) } : item
+                      ))}
+                      className="w-full accent-[#4318FF] cursor-pointer"
+                    />
+                    {criterion.comment && <p className="mt-2 text-[11px] text-gray-500">AI: {criterion.comment}</p>}
                   </div>
-                  <input type="range" min="0" max="2" step="0.5" value={decompositionScore} onChange={(e) => setDecompositionScore(Number(e.target.value))} className="w-full accent-[#4318FF] cursor-pointer" />
-                </div>
-
-                <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                  <div className="flex justify-between text-xs font-bold text-[#1B2559] mb-1.5">
-                    <span>Pattern Recognition (15%)</span>
-                    <span className="text-[#4318FF] font-black">{patternRecognitionScore.toFixed(1)} / 1.5</span>
-                  </div>
-                  <input type="range" min="0" max="1.5" step="0.5" value={patternRecognitionScore} onChange={(e) => setPatternRecognitionScore(Number(e.target.value))} className="w-full accent-[#4318FF] cursor-pointer" />
-                </div>
-
-                <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                  <div className="flex justify-between text-xs font-bold text-[#1B2559] mb-1.5">
-                    <span>Abstraction (15%)</span>
-                    <span className="text-[#4318FF] font-black">{abstractionScore.toFixed(1)} / 1.5</span>
-                  </div>
-                  <input type="range" min="0" max="1.5" step="0.5" value={abstractionScore} onChange={(e) => setAbstractionScore(Number(e.target.value))} className="w-full accent-[#4318FF] cursor-pointer" />
-                </div>
-
-                <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                  <div className="flex justify-between text-xs font-bold text-[#1B2559] mb-1.5">
-                    <span>Algorithmic Thinking (20%)</span>
-                    <span className="text-[#4318FF] font-black">{algorithmicThinkingScore.toFixed(1)} / 2.0</span>
-                  </div>
-                  <input type="range" min="0" max="2" step="0.5" value={algorithmicThinkingScore} onChange={(e) => setAlgorithmicThinkingScore(Number(e.target.value))} className="w-full accent-[#4318FF] cursor-pointer" />
-                </div>
+                ))}
               </div>
             </div>
+
+            {activeAdvisoryRunId && Math.abs(Number(totalScore) - Number(aiRecommendedScore || 0)) > 0.01 && (
+              <div className="pt-2">
+                <label className="block text-xs font-black text-[#1B2559] uppercase tracking-wider mb-2">Lý do điều chỉnh khác gợi ý AI</label>
+                <textarea
+                  rows={3}
+                  required
+                  className="w-full bg-white border border-amber-300 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  placeholder="Ghi rõ căn cứ chuyên môn khiến giảng viên điều chỉnh điểm..."
+                  value={lecturerAdjustmentReason}
+                  onChange={(event) => setLecturerAdjustmentReason(event.target.value)}
+                />
+              </div>
+            )}
 
             {/* Overall Feedback */}
             <div className="pt-2">

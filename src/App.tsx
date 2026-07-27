@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import LoginPage from './pages/auth/LoginPage';
 import StudentDashboard from './pages/student/StudentDashboard';
 import LecturerDashboard from './pages/lecturer/LecturerDashboard';
@@ -42,7 +43,25 @@ import GradeReportsApprovalPage from './pages/subjectHead/GradeReportsApprovalPa
 import SubjectAnalyticsPage from './pages/subjectHead/SubjectAnalyticsPage';
 
 import SettingsPage from './pages/SettingsPage';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+
+const roleHome: Record<string, string> = {
+  STUDENT: '/student/home',
+  LECTURER: '/lecturer/dashboard',
+  ADMIN: '/admin/dashboard',
+};
+
+function RoleRoute({ roles, children }: { roles: string[]; children: ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-sm font-bold text-gray-500">Checking access...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+
+  const normalizedRole = user.role?.toUpperCase();
+  if (!roles.includes(normalizedRole)) {
+    return <Navigate to={roleHome[normalizedRole] || '/login'} replace />;
+  }
+  return children;
+}
 
 function AppRoutes() {
   return (
@@ -51,7 +70,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       
       {/* Student Routes */}
-      <Route path="/student" element={<StudentLayout />}>
+      <Route path="/student" element={<RoleRoute roles={['STUDENT']}><StudentLayout /></RoleRoute>}>
         <Route index element={<Navigate to="/student/home" replace />} />
         <Route path="home" element={<StudentDashboard />} />
         <Route path="subjects" element={<StudentClassesPage />} />
@@ -72,7 +91,7 @@ function AppRoutes() {
       </Route>
       
       {/* Lecturer Routes */}
-      <Route path="/lecturer" element={<LecturerLayout />}>
+      <Route path="/lecturer" element={<RoleRoute roles={['LECTURER']}><LecturerLayout /></RoleRoute>}>
         <Route index element={<Navigate to="/lecturer/dashboard" replace />} />
         <Route path="dashboard" element={<LecturerDashboard />} />
         <Route path="subjects" element={<LecturerSubjects />} />
@@ -85,17 +104,17 @@ function AppRoutes() {
         <Route path="classes/:classId/gradebook" element={<ClassGradebook />} />
         <Route path="grading" element={<LecturerGradingSubjects />} />
         <Route path="grading/:classId" element={<LecturerGradingList />} />
-        <Route path="reports" element={<div className="text-xl font-bold">Reports Page</div>} />
+        <Route path="reports" element={<Navigate to="/lecturer/dashboard" replace />} />
         <Route path="news" element={<div className="text-xl font-bold">News Page</div>} />
         <Route path="messages" element={<LecturerMessagesPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
 
       {/* Lecturer Grading Detail (Full Screen) */}
-      <Route path="/lecturer/grading/detail/:submissionId" element={<LecturerGradingDetail />} />
+      <Route path="/lecturer/grading/detail/:submissionId" element={<RoleRoute roles={['LECTURER']}><LecturerGradingDetail /></RoleRoute>} />
 
       {/* Admin Routes */}
-      <Route path="/admin" element={<AdminLayout />}>
+      <Route path="/admin" element={<RoleRoute roles={['ADMIN']}><AdminLayout /></RoleRoute>}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
         <Route path="users" element={<div className="text-xl font-bold p-6">Users Page</div>} />

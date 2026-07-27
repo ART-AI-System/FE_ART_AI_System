@@ -309,6 +309,9 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
               handleSubmit={handleFinalize} 
               isSubmitting={isFinalizing} 
               aiDeclarationConfig={assignment?.aiDeclarationConfig}
+              aiRequired={aiRequired}
+              minInteractions={aiRequired ? minAi : 0}
+              maxInteractions={assignment?.maxAiInteractions || 10}
             />
           </div>
         </div>

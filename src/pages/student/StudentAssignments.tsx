@@ -213,12 +213,20 @@ const StudentAssignments = () => {
                       Start Assignment <ArrowRight className="w-4 h-4 ml-2" />
                     </button>
                   )}
-                  {isCompleted && (
+                  {isCompleted && assignment.type === 'test' && (
                     <button 
                       onClick={() => setViewingSubmission(assignment.submission)}
                       className="px-6 py-2.5 bg-green-50 text-green-600 rounded-xl text-sm font-bold shadow-sm hover:bg-green-100 transition-colors flex items-center"
                     >
                       <Eye className="w-4 h-4 mr-2" /> View Details
+                    </button>
+                  )}
+                  {isCompleted && assignment.type !== 'test' && (
+                    <button 
+                      onClick={() => navigate(`/student/assignments/${assignment._id}/submit`)}
+                      className="px-6 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-100 transition-colors flex items-center"
+                    >
+                      <ArrowRight className="w-4 h-4 mr-2" /> Update Submission
                     </button>
                   )}
                   {isPastDue && (

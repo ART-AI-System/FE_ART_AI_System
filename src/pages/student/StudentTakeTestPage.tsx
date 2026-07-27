@@ -20,8 +20,8 @@ const StudentTakeTestPage = () => {
 
   // Load draft from localStorage on mount
   useEffect(() => {
-    if (assignmentId) {
-      const savedAnswers = localStorage.getItem(`test_draft_${user?._id}_${assignmentId}`);
+    if (assignmentId && user?.id) {
+      const savedAnswers = localStorage.getItem(`test_draft_${user?.id}_${assignmentId}`);
       if (savedAnswers) {
         try {
           setAnswers(JSON.parse(savedAnswers));
@@ -30,16 +30,17 @@ const StudentTakeTestPage = () => {
         }
       }
     }
-  }, [assignmentId]);
+  }, [assignmentId, user?.id]);
 
   // Save to localStorage every time answers change
   useEffect(() => {
-    if (assignmentId && Object.keys(answers).length > 0) {
-      localStorage.setItem(`test_draft_${user?._id}_${assignmentId}`, JSON.stringify(answers));
+    if (assignmentId && user?.id && Object.keys(answers).length > 0) {
+      localStorage.setItem(`test_draft_${user?.id}_${assignmentId}`, JSON.stringify(answers));
     }
-  }, [answers, assignmentId]);
+  }, [answers, assignmentId, user?.id]);
 
   useEffect(() => {
+    if (!assignmentId || !user?.id) return;
     const fetchTest = async () => {
       try {
         // First check if already submitted
@@ -59,7 +60,7 @@ const StudentTakeTestPage = () => {
         
         // Handle randomized question order for each student
         if (data.questions && data.questions.length > 0) {
-          const storageKey = `test_question_ids_${user?._id}_${assignmentId}`;
+          const storageKey = `test_question_ids_${user?.id}_${assignmentId}`;
           let savedIdsStr = localStorage.getItem(storageKey);
           let selectedIds: string[] = [];
           
@@ -95,7 +96,7 @@ const StudentTakeTestPage = () => {
         const durationSeconds = data.duration ? data.duration * 60 : 60 * 60;
         
         // Restore or initialize timer
-        const savedStartTime = localStorage.getItem(`test_start_time_${user?._id}_${assignmentId}`);
+        const savedStartTime = localStorage.getItem(`test_start_time_${user?.id}_${assignmentId}`);
         if (savedStartTime) {
           const elapsed = Math.floor((Date.now() - parseInt(savedStartTime, 10)) / 1000);
           const remaining = durationSeconds - elapsed;
@@ -116,13 +117,13 @@ const StudentTakeTestPage = () => {
     if (assignmentId) {
       fetchTest();
     }
-  }, [assignmentId]);
+  }, [assignmentId, user?.id]);
 
   useEffect(() => {
     if (!showAntiCheat && timeLeft > 0) {
       // Record start time only when they actually start
-      if (!localStorage.getItem(`test_start_time_${user?._id}_${assignmentId}`)) {
-        localStorage.setItem(`test_start_time_${user?._id}_${assignmentId}`, Date.now().toString());
+      if (!localStorage.getItem(`test_start_time_${user?.id}_${assignmentId}`)) {
+        localStorage.setItem(`test_start_time_${user?.id}_${assignmentId}`, Date.now().toString());
       }
       
       const timer = setInterval(() => {
@@ -141,7 +142,7 @@ const StudentTakeTestPage = () => {
         submitTest(true);
       }
     }
-  }, [showAntiCheat, timeLeft, loading, assignmentId, isAlreadySubmitted]);
+  }, [showAntiCheat, timeLeft, loading, assignmentId, isAlreadySubmitted, user?.id]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -185,7 +186,7 @@ const StudentTakeTestPage = () => {
         
         // Include the randomly selected question IDs if applicable
         if (testData?.isRandomPerStudent) {
-          const storageKey = `test_question_ids_${user?._id}_${assignmentId}`;
+          const storageKey = `test_question_ids_${user?.id}_${assignmentId}`;
           const savedIdsStr = localStorage.getItem(storageKey);
           if (savedIdsStr) {
             try {
@@ -210,8 +211,8 @@ const StudentTakeTestPage = () => {
         }
         
         alert(isAutoSubmit ? 'Time is up! Your test has been auto-submitted.' : 'Test submitted successfully!');
-        localStorage.removeItem(`test_draft_${user?._id}_${assignmentId}`);
-        localStorage.removeItem(`test_start_time_${user?._id}_${assignmentId}`);
+        localStorage.removeItem(`test_draft_${user?.id}_${assignmentId}`);
+        localStorage.removeItem(`test_start_time_${user?.id}_${assignmentId}`);
         navigate(location.state?.returnUrl || '/student/assignments');
       } catch (err) {
         console.error('Submit attempt API call failed', err);
@@ -361,7 +362,7 @@ const StudentTakeTestPage = () => {
             <h2 className="text-2xl font-extrabold text-[#1B2559] mb-2">Exam Mode Active</h2>
             <p className="text-gray-500 mb-6">You are about to start a timed exam. Do not switch tabs, minimize the browser, or open other applications. Doing so will be recorded as a violation.</p>
             <div className="mt-8">
-              {localStorage.getItem(`test_start_time_${user?._id}_${assignmentId}`) ? (
+              {localStorage.getItem(`test_start_time_${user?.id}_${assignmentId}`) ? (
                 <div className="flex flex-col space-y-3">
                   <button 
                     onClick={handleStartExam} 
@@ -372,9 +373,9 @@ const StudentTakeTestPage = () => {
                   <button 
                     onClick={() => {
                       if (window.confirm('Are you sure you want to start fresh? This will delete your current draft and timer. Use this only if the lecturer allowed you to retake.')) {
-                        localStorage.removeItem(`test_draft_${user?._id}_${assignmentId}`);
-                        localStorage.removeItem(`test_start_time_${user?._id}_${assignmentId}`);
-                        localStorage.removeItem(`test_question_ids_${user?._id}_${assignmentId}`);
+                        localStorage.removeItem(`test_draft_${user?.id}_${assignmentId}`);
+                        localStorage.removeItem(`test_start_time_${user?.id}_${assignmentId}`);
+                        localStorage.removeItem(`test_question_ids_${user?.id}_${assignmentId}`);
                         window.location.reload();
                       }
                     }} 

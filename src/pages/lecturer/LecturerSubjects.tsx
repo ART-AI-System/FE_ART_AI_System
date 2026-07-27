@@ -2,28 +2,53 @@ import React, { useEffect, useState } from 'react';
 import { BookOpen, Users, FileCheck2, ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
+import { semesterService } from '../../services/semester.service';
+import { analyticsService } from '../../services/analytics.service';
 
 const LecturerSubjects = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
+  const [semesters, setSemesters] = useState<any[]>([]);
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchDashboard = async () => {
+    const fetchInitialData = async () => {
       try {
-        const response: any = await axiosClient.get('/lecturer/home');
-        setData(response.result);
+        setLoading(true);
+        const [semestersList, homeData] = await Promise.all([
+          semesterService.getSemesters(),
+          analyticsService.getLecturerHome()
+        ]);
+        setSemesters(semestersList);
+        setData(homeData);
+        if (homeData?.currentSemester) {
+          setSelectedSemester(homeData.currentSemester._id);
+        }
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
       } finally {
         setLoading(false);
       }
     };
-
-    fetchDashboard();
+    fetchInitialData();
   }, []);
 
-  if (loading) {
+  const handleSemesterChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const semId = e.target.value;
+    setSelectedSemester(semId);
+    try {
+      setLoading(true);
+      const homeData = await analyticsService.getLecturerHome(semId);
+      setData(homeData);
+    } catch (error) {
+      console.error('Failed to load classes for semester:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading && !data) {
     return (
       <div className="flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F26F21]"></div>
@@ -41,8 +66,18 @@ const LecturerSubjects = () => {
           <p className="text-gray-500 font-medium mt-1">Manage your classes, syllabuses, and assignments</p>
         </div>
         <div className="mt-4 md:mt-0 relative">
-          <select className="appearance-none bg-white border border-gray-200 text-[#1B2559] text-sm font-bold rounded-xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-[#F26F21]/20 focus:border-[#F26F21] shadow-sm transition-all cursor-pointer">
-            <option value="SP2026">{data?.currentSemester?.name || 'Current Semester'}</option>
+          <select 
+            value={selectedSemester}
+            onChange={handleSemesterChange}
+            disabled={loading}
+            className="appearance-none bg-white border border-gray-200 text-[#1B2559] text-sm font-bold rounded-xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-[#F26F21]/20 focus:border-[#F26F21] shadow-sm transition-all cursor-pointer disabled:opacity-50"
+          >
+            {semesters.map(sem => (
+              <option key={sem._id} value={sem._id}>{sem.name}</option>
+            ))}
+            {semesters.length === 0 && (
+              <option value="">{data?.currentSemester?.name || 'Current Semester'}</option>
+            )}
           </select>
         </div>
       </div>
@@ -71,7 +106,7 @@ const LecturerSubjects = () => {
               <div className="grid grid-cols-2 gap-4 mt-auto mb-4">
                 <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                   <p className="text-xs font-medium text-gray-400 mb-1 flex items-center"><Users className="w-3 h-3 mr-1" /> Students</p>
-                  <p className="text-lg font-bold text-[#1B2559]">{cls.totalStudents}</p>
+                  <p className="text-lg font-bold text-[#1B2559]">{cls.studentsCount || cls.totalStudents || 0}</p>
                 </div>
                 <div className={`rounded-xl p-3 border ${isOrange ? 'bg-orange-50 border-orange-100' : 'bg-blue-50 border-blue-100'}`}>
                   <p className={`text-xs font-medium mb-1 flex items-center ${isOrange ? 'text-orange-500' : 'text-blue-500'}`}>

@@ -1,30 +1,54 @@
 import React, { useEffect, useState } from 'react';
 import { Search, ArrowRight } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
+import { semesterService } from '../../services/semester.service';
 
 const LecturerGradingSubjects = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
+  const [semesters, setSemesters] = useState<any[]>([]);
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const fetchDashboard = async () => {
+    const fetchInitialData = async () => {
       try {
-        const response: any = await axiosClient.get('/lecturer/home');
+        setLoading(true);
+        const [semestersList, response] = await Promise.all([
+          semesterService.getSemesters(),
+          axiosClient.get('/lecturer/home') as Promise<any>
+        ]);
+        setSemesters(semestersList);
         setData(response.result);
+        if (response.result?.currentSemester) {
+          setSelectedSemester(response.result.currentSemester._id);
+        }
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
       } finally {
         setLoading(false);
       }
     };
-
-    fetchDashboard();
+    fetchInitialData();
   }, []);
 
-  if (loading) {
+  const handleSemesterChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const semId = e.target.value;
+    setSelectedSemester(semId);
+    try {
+      setLoading(true);
+      const response: any = await axiosClient.get(`/lecturer/home?semesterId=${semId}`);
+      setData(response.result);
+    } catch (error) {
+      console.error('Failed to load classes for semester:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading && !data) {
     return (
       <div className="flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F26F21]"></div>
@@ -58,8 +82,18 @@ const LecturerGradingSubjects = () => {
               className="bg-transparent border-none outline-none ml-3 w-full text-sm font-medium text-gray-700 placeholder-gray-400"
             />
           </div>
-          <select className="appearance-none bg-white border border-gray-200 text-[#1B2559] text-sm font-bold rounded-xl px-4 py-2.5 pr-10 shadow-sm cursor-pointer outline-none focus:border-[#F26F21]">
-            <option value="SP2026">{data?.currentSemester?.name || 'Current Semester'}</option>
+          <select 
+            value={selectedSemester}
+            onChange={handleSemesterChange}
+            disabled={loading}
+            className="appearance-none bg-white border border-gray-200 text-[#1B2559] text-sm font-bold rounded-xl px-4 py-2.5 pr-10 shadow-sm cursor-pointer outline-none focus:border-[#F26F21] disabled:opacity-50"
+          >
+            {semesters.map(sem => (
+              <option key={sem._id} value={sem._id}>{sem.name}</option>
+            ))}
+            {semesters.length === 0 && (
+              <option value="">{data?.currentSemester?.name || 'Current Semester'}</option>
+            )}
           </select>
         </div>
       </div>
@@ -99,7 +133,7 @@ const LecturerGradingSubjects = () => {
                   </div>
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs font-medium text-gray-400 mb-1">Students</p>
-                    <p className="text-lg font-bold text-[#1B2559]">{cls.totalStudents}</p>
+                    <p className="text-lg font-bold text-[#1B2559]">{cls.studentsCount || cls.totalStudents || 0}</p>
                   </div>
                 </div>
                 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   BrainCircuit, ChevronLeft, ChevronRight, X, Home, BookOpen, Calendar, 
-  FileCheck2, BarChart2, ChevronDown, Newspaper, MessageCircle, Settings 
+  FileCheck2, BarChart2, ChevronDown, Newspaper, MessageCircle, Settings, LogOut
 } from 'lucide-react';
 
 interface StudentSidebarProps {
@@ -143,6 +143,18 @@ const StudentSidebar: React.FC<StudentSidebarProps> = ({
             <Settings className="w-5 h-5 mr-4 shrink-0" />
             {!sidebarCollapsed && <span className="whitespace-nowrap">Settings</span>}
           </Link>
+          <button 
+            onClick={() => {
+              localStorage.removeItem('access_token');
+              localStorage.removeItem('refresh_token');
+              localStorage.removeItem('user');
+              window.location.href = '/login';
+            }}
+            className="flex items-center px-4 py-3.5 font-medium rounded-xl transition-all relative text-red-500 hover:bg-red-50 hover:text-red-600 mt-2 text-left w-full"
+          >
+            <LogOut className="w-5 h-5 mr-4 shrink-0" />
+            {!sidebarCollapsed && <span className="whitespace-nowrap">Logout</span>}
+          </button>
         </nav>
       </aside>
     </>

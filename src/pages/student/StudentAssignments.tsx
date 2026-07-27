@@ -49,18 +49,21 @@ const StudentAssignments = () => {
             const submission = submittedItems.find((s: any) => s.gradeItemId === assignment._id);
             const now = new Date();
             const deadline = new Date(assignment.deadline);
+            const isDeadlineValid = assignment.deadline && !isNaN(deadline.getTime());
             
             let status = 'pending';
             if (submission) {
               status = 'completed';
-            } else if (now > deadline) {
+            } else if (isDeadlineValid && now > deadline) {
               status = 'past_due';
             }
             
             return {
               ...assignment,
               submissionStatus: status,
-              submission
+              submission,
+              isDeadlineValid,
+              validDeadlineDate: isDeadlineValid ? deadline : null
             };
           });
           
@@ -156,7 +159,7 @@ const StudentAssignments = () => {
           </div>
         ) : (
           filteredAssignments.map((assignment: any, index: number) => {
-            const isUrgent = assignment.submissionStatus === 'pending' && new Date(assignment.deadline).getTime() - new Date().getTime() < 3 * 24 * 60 * 60 * 1000;
+            const isUrgent = assignment.submissionStatus === 'pending' && assignment.isDeadlineValid && (assignment.validDeadlineDate.getTime() - new Date().getTime() < 3 * 24 * 60 * 60 * 1000);
             const isCompleted = assignment.submissionStatus === 'completed';
             const isPastDue = assignment.submissionStatus === 'past_due';
             
@@ -180,7 +183,7 @@ const StudentAssignments = () => {
                         {assignment.classInfo.classCode}
                       </span>
                       <span className={`text-xs font-bold px-2 py-1 rounded-md ${isUrgent ? 'text-orange-500 bg-orange-50' : isCompleted ? 'text-green-600 bg-green-50' : isPastDue ? 'text-red-500 bg-red-50' : 'text-gray-500'}`}>
-                        {isCompleted ? 'Submitted' : `Due: ${new Date(assignment.deadline).toLocaleDateString()}`}
+                        {isCompleted ? 'Submitted' : (assignment.isDeadlineValid ? `Due: ${assignment.validDeadlineDate.toLocaleDateString()}` : 'Due: No Deadline')}
                       </span>
                     </div>
                     <h3 className="text-lg font-bold text-[#1B2559]">{assignment.title}</h3>

@@ -89,11 +89,12 @@ const SubjectHeadMessagesPage = () => {
         try {
           const newRoom = await chatService.createRoom([contactId], 'direct');
           
-          // Join room immediately and send message so it saves to DB
+          // Join room immediately and send message via socket
           chatSocketService.getSocket()?.emit('chat:join_room', { roomId: newRoom._id });
-          const sentMsg = await chatService.sendMessage(newRoom._id, content);
-          newRoom.lastMessage = sentMsg.content;
-          newRoom.lastMessageAt = sentMsg.createdAt;
+          sendMessage(content, newRoom._id);
+          
+          newRoom.lastMessage = content;
+          newRoom.lastMessageAt = new Date().toISOString();
           
           // Update UI state - this will trigger useMessages to fetch the newly created message
           setConversations(prev => {

@@ -7,8 +7,9 @@ export interface ChatApiResponse<T> {
 
 export const analyticsService = {
   // Student Home
-  getStudentHome: async () => {
-    const response = await axiosClient.get<any, ChatApiResponse<any>>('/student/home');
+  getStudentHome: async (semesterId?: string) => {
+    const url = semesterId ? `/student/home?semesterId=${semesterId}` : '/student/home';
+    const response = await axiosClient.get<any, ChatApiResponse<any>>(url);
     return response.result;
   },
   getEnrolledSubjects: async (semesterId: string) => {
@@ -21,8 +22,9 @@ export const analyticsService = {
   },
 
   // Lecturer Analytics
-  getLecturerHome: async () => {
-    const response = await axiosClient.get<any, ChatApiResponse<any>>('/lecturer/home');
+  getLecturerHome: async (semesterId?: string) => {
+    const url = semesterId ? `/lecturer/home?semesterId=${semesterId}` : '/lecturer/home';
+    const response = await axiosClient.get<any, ChatApiResponse<any>>(url);
     return response.result;
   },
   getClassOverview: async (classId: string) => {

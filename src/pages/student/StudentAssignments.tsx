@@ -196,7 +196,14 @@ const StudentAssignments = () => {
                   </p>
                   {!isCompleted && !isPastDue && (
                     <button 
-                      onClick={() => navigate(`/student/assignments/${assignment._id}/submit`)}
+                      onClick={() => {
+                        console.log('CLICKED START ASSIGNMENT:', assignment._id, 'TYPE IS:', assignment.type, 'FULL ASSIGNMENT:', assignment);
+                        if (assignment.type === 'test') {
+                          navigate(`/student/assignments/${assignment._id}/test`, { state: { returnUrl: location.pathname } });
+                        } else {
+                          navigate(`/student/assignments/${assignment._id}/submit`);
+                        }
+                      }}
                       className={`px-6 py-2.5 rounded-xl text-sm font-bold shadow-md transition-all flex items-center text-white
                         ${isUrgent ? 'bg-gradient-to-br from-[#F26F21] to-[#F79C65] hover:opacity-90 shadow-orange-200' : 'bg-[#4318FF] hover:bg-blue-700 shadow-blue-200'}`}
                     >
@@ -213,7 +220,13 @@ const StudentAssignments = () => {
                   )}
                   {isPastDue && (
                     <button 
-                      onClick={() => navigate(`/student/assignments/${assignment._id}/submit`)}
+                      onClick={() => {
+                        if (assignment.type === 'test') {
+                          navigate(`/student/assignments/${assignment._id}/test`, { state: { returnUrl: location.pathname } });
+                        } else {
+                          navigate(`/student/assignments/${assignment._id}/submit`);
+                        }
+                      }}
                       className="px-6 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors flex items-center"
                     >
                       Submit Late <ArrowRight className="w-4 h-4 ml-2" />
@@ -251,12 +264,46 @@ const StudentAssignments = () => {
                     <p className="text-xs text-green-600">{new Date(viewingSubmission.updatedAt || viewingSubmission.createdAt).toLocaleString()}</p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => window.open(viewingSubmission.fileUrl || '#', '_blank')}
-                  className="px-4 py-2 bg-white border border-green-200 text-green-700 rounded-lg text-sm font-bold hover:bg-green-50 flex items-center"
-                >
-                  <Download className="w-4 h-4 mr-2" /> File
-                </button>
+                {viewingSubmission.gradeItemId?.type !== 'test' && !(viewingSubmission.note && !viewingSubmission.fileName) && viewingSubmission.fileName !== 'submission.txt' && (
+                  <button 
+                    onClick={() => window.open(viewingSubmission.fileUrl || '#', '_blank')}
+                    className="px-4 py-2 bg-white border border-green-200 text-green-700 rounded-lg text-sm font-bold hover:bg-green-50 flex items-center"
+                  >
+                    <Download className="w-4 h-4 mr-2" /> File
+                  </button>
+                )}
+              </div>
+
+              <div className="flex-1 mb-6">
+                <h3 className="text-lg font-bold text-[#1B2559] mb-4">Your Work</h3>
+                {viewingSubmission.gradeItemId?.type === 'test' || (viewingSubmission.note && !viewingSubmission.fileName) || viewingSubmission.fileName === 'submission.txt' ? (
+                  <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center mr-4">
+                        <FileText className="w-6 h-6 text-green-500" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#1B2559]">Auto-Graded Test Submitted</p>
+                        <p className="text-xs text-gray-500">Submitted on {new Date(viewingSubmission.updatedAt || viewingSubmission.createdAt).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center mr-4">
+                        <FileText className="w-6 h-6 text-orange-500" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#1B2559]">{viewingSubmission.fileName || 'submission.zip'}</p>
+                        <p className="text-xs text-gray-500">Submitted on {new Date(viewingSubmission.updatedAt || viewingSubmission.createdAt).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => window.open(viewingSubmission.fileUrl || '#', '_blank')} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors">
+                      Download
+                    </button>
+                  </div>
+                )}
               </div>
 
               <h3 className="text-lg font-bold text-[#1B2559] mb-4 flex items-center">

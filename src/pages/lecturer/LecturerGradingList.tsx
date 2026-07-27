@@ -257,20 +257,24 @@ const LecturerGradingListPage = () => {
                     </td>
                     <td className="px-6 py-4">
                       {row.submission ? (
-                        <button 
-                          onClick={async () => {
-                            try {
-                              const { submissionService } = await import('../../services/submission.service');
-                              await submissionService.downloadSubmissionLatest(row.submission._id, row.submission.fileName);
-                            } catch (e: any) {
-                              console.error('Download Error:', e);
-                              alert('Could not download file. ' + (e?.response?.data?.message || e.message || ''));
-                            }
-                          }}
-                          className="text-[#4318FF] font-bold hover:underline flex items-center cursor-pointer bg-transparent border-none p-0"
-                        >
-                          <FileArchive className="w-4 h-4 mr-1 shrink-0" /> <span className="truncate max-w-[120px]">{row.submission.fileName || 'Download Zip'}</span>
-                        </button>
+                        gradeItems.find(g => g._id === selectedGradeItemId)?.type === 'test' ? (
+                          <span className="text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full text-xs">Auto-Graded Test</span>
+                        ) : (
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const { submissionService } = await import('../../services/submission.service');
+                                await submissionService.downloadSubmissionLatest(row.submission._id, row.submission.fileName);
+                              } catch (e: any) {
+                                console.error('Download Error:', e);
+                                alert('Could not download file. ' + (e?.response?.data?.message || e.message || ''));
+                              }
+                            }}
+                            className="text-[#4318FF] font-bold hover:underline flex items-center cursor-pointer bg-transparent border-none p-0"
+                          >
+                            <FileArchive className="w-4 h-4 mr-1 shrink-0" /> <span className="truncate max-w-[120px]">{row.submission.fileName || 'Download Zip'}</span>
+                          </button>
+                        )
                       ) : (
                         <span className="text-gray-400 italic">No file</span>
                       )}
@@ -280,7 +284,9 @@ const LecturerGradingListPage = () => {
                         <div className="flex flex-col w-48">
                            {/* Using static AI values for now unless API returns them */}
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-bold text-gray-500">Declared AI Usage</span>
+                            <span className="text-xs font-bold text-gray-500">
+                              {gradeItems.find(g => g._id === selectedGradeItemId)?.type === 'test' ? 'AI Auto-Grading' : 'Declared AI Usage'}
+                            </span>
                             <button 
                               onMouseEnter={() => {
                                 if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
@@ -306,13 +312,51 @@ const LecturerGradingListPage = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 font-extrabold text-[#1B2559] text-lg">
-                      {row.grade ? row.grade.score : <span className="text-gray-400 text-sm font-normal">-</span>}
+                      {(() => {
+                        if (row.grade) return row.grade.score;
+                        const gradeItem = gradeItems.find(g => g._id === selectedGradeItemId);
+                        if (gradeItem?.type === 'test' && row.submission?.note && gradeItem.questions) {
+                          try {
+                            const answers = JSON.parse(row.submission.note);
+                            let score = 0;
+                            gradeItem.questions.forEach((q: any) => {
+                              const selectedOptionId = answers[q._id];
+                              const correctOption = q.options.find((o: any) => o.isCorrect);
+                              if (correctOption && selectedOptionId === correctOption._id) {
+                                score += q.points || 0;
+                              }
+                            });
+                            return <span className="text-green-600">{Number(score.toFixed(2))}</span>;
+                          } catch (e) {
+                            return <span className="text-gray-400 text-sm font-normal">-</span>;
+                          }
+                        }
+                        return <span className="text-gray-400 text-sm font-normal">-</span>;
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-center">
                       {row.submission ? (
                         row.isGroupAssignment && !row.isRepresentative && !row.grade ? (
                           <button disabled className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-400 text-xs font-bold rounded-lg cursor-not-allowed border border-gray-200">
                             Wait for Rep
+                          </button>
+                        ) : gradeItems.find(g => g._id === selectedGradeItemId)?.type === 'test' ? (
+                          <button 
+                            onClick={async () => {
+                              if (window.confirm(`Are you sure you want to allow ${row.student.fullName} to retake? This will permanently delete their current submission and score.`)) {
+                                try {
+                                  await axiosClient.delete(`/submissions/${row.submission._id}`);
+                                  alert('Submission deleted. The student can now retake the test.');
+                                  // Simply reload the page for a clean state update
+                                  window.location.reload();
+                                } catch (e) {
+                                  alert('Failed to delete submission');
+                                }
+                              }
+                            }}
+                            className="inline-flex items-center px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold rounded-lg border border-red-200 transition-colors shadow-sm"
+                          >
+                            Allow Retake
                           </button>
                         ) : (
                           <Link 
@@ -326,6 +370,10 @@ const LecturerGradingListPage = () => {
                             {row.grade ? (row.isGroupAssignment && !row.isRepresentative ? 'Adjust' : 'View') : 'Evaluate'}
                           </Link>
                         )
+                      ) : gradeItems.find(g => g._id === selectedGradeItemId)?.type === 'test' ? (
+                        <button disabled className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-400 text-xs font-bold rounded-lg cursor-not-allowed">
+                          Allow Retake
+                        </button>
                       ) : (
                         <button disabled className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-400 text-xs font-bold rounded-lg cursor-not-allowed">
                           Evaluate

@@ -64,9 +64,11 @@ export const submissionService = {
     return await axiosClient.post(`/assignments/${assignmentId}/submissions`, formData);
   },
 
-  resubmitVersion: async (submissionId: string, file: File, note?: string, groupMembers?: string[]) => {
+  resubmitVersion: async (submissionId: string, file: File | null, note?: string, groupMembers?: string[]) => {
     const formData = new FormData();
-    formData.append('file', file);
+    if (file) {
+      formData.append('file', file);
+    }
     if (note) {
       formData.append('note', note);
     }
@@ -129,6 +131,10 @@ export const submissionService = {
 
   getAiInteractions: async (submissionId: string) => {
     return await axiosClient.get(`/submissions/${submissionId}/ai-interactions`);
+  },
+
+  updateAiInteraction: async (interactionId: string, payload: any) => {
+    return await axiosClient.put(`/ai-interactions/${interactionId}`, payload);
   },
 
   // --- Grading Methods ---

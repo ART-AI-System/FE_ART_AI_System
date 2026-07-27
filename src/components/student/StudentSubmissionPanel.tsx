@@ -46,7 +46,7 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
     if (status === 'GRADED' && submission?._id) {
       import('../../api/axiosClient').then((m) => {
         m.default.get(`/submissions/${submission._id}/grade`)
-          .then(res => setGradeResult(res.result || res))
+          .then((res: any) => setGradeResult(res.result || res.data?.result || res))
           .catch(console.error);
       });
     }
@@ -56,6 +56,15 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
     if (submission?._id) {
       submissionService.getSubmissionVersions(submission._id)
         .then((res: any) => setVersions(res.result || []))
+        .catch(console.error);
+        
+      submissionService.getAiInteractions(submission._id)
+        .then((res: any) => {
+          const aiItems = res.result || res.data?.result || [];
+          if (aiItems.length > 0) {
+            setAiData(aiItems);
+          }
+        })
         .catch(console.error);
         
       if (submission.groupMembers && submission.groupMembers.length > 0) {
@@ -117,43 +126,44 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
     try {
       let currentSubmissionId = submission?._id;
 
-      // 1. If there's a new file, upload it first to create/update draft
-      if (file) {
-        if (!submission) {
-          const res: any = await submissionService.createSubmission(assignment._id, file, '', groupMembers);
-          currentSubmissionId = res?.result?._id || res?.data?.result?._id;
-        } else {
-          const res: any = await submissionService.resubmitVersion(submission._id, file, '', groupMembers);
-          currentSubmissionId = res?.result?._id || res?.data?.result?._id || currentSubmissionId;
-        }
-      } else if (!file && submission) {
-        // If no file but submission exists, update group members before finalizing
-        await submissionService.updateGroupMembers(submission._id, groupMembers);
+      // 1. Upload or create new submission version
+      if (!submission) {
+        if (!file) throw new Error("Please upload a file first.");
+        const res: any = await submissionService.createSubmission(assignment._id, file, '', groupMembers);
+        currentSubmissionId = res?.result?._id || res?.data?.result?._id;
+      } else {
+        // If we have a submission, we create a new version (with or without a new file)
+        const res: any = await submissionService.resubmitVersion(submission._id, file, '', groupMembers);
+        currentSubmissionId = res?.result?._id || res?.data?.result?._id || currentSubmissionId;
       }
       
       if (!currentSubmissionId) {
-        throw new Error("No submission found to finalize. Please upload a file.");
+        throw new Error("No submission found to finalize.");
       }
 
       // 2. Save AI Interactions
       if (formData && formData.length > 0) {
         await Promise.all(
-          formData.map((interaction: any) => 
-            submissionService.createAiInteractions(currentSubmissionId, {
+          formData.map((interaction: any) => {
+            return submissionService.createAiInteractions(currentSubmissionId, {
               aiTool: interaction.aiTool,
               usagePurpose: interaction.usagePurpose,
               promptContent: interaction.promptContent,
               aiResponseSummary: interaction.aiResponseSummary,
               studentDecision: interaction.studentDecision,
               reflectionText: interaction.reflectionText
-            })
-          )
+            });
+          })
         );
       }
 
       // 3. Finalize
       await submissionService.finalizeSubmission(currentSubmissionId);
       onRefresh();
+      
+      // Reset UI state to exit "Update mode"
+      setIsResubmitting(false);
+      setCurrentStep(1);
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.message || err.message || 'Failed to finalize submission.');
@@ -199,10 +209,6 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
           <div className={`w-10 h-0.5 ${currentStep === 2 ? 'bg-green-400' : 'bg-gray-200'}`}></div>
           <button 
             onClick={() => {
-              if (isResubmitting && !file) {
-                alert('You must upload a new file to update your submission!');
-                return;
-              }
               if (!file && !submission) {
                 alert('Please upload a file first!');
                 return;
@@ -225,7 +231,7 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
       {showForm && (
         <div>
           <div className={currentStep === 1 ? 'block animate-fade-in' : 'hidden'}>
-            <FileUploadSection onFileSelect={setFile} />
+            <FileUploadSection onFileSelect={setFile} initialFileName={submission?.fileName} />
             
             {assignment?.isGroupAssignment && classData && classData.students && (
               <div className="mt-6 p-4 border border-gray-100 rounded-xl bg-gray-50/80">
@@ -276,17 +282,13 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
             <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end">
               <button 
                 onClick={handleSaveDraft}
-                disabled={isUploading || (!file && !submission) || (isResubmitting && !file)}
+                disabled={isUploading || (!file && !submission)}
                 className="bg-gray-100 text-gray-600 px-6 py-3 rounded-xl text-sm font-bold hover:bg-gray-200 mr-4 disabled:opacity-50"
               >
                 {isUploading ? 'Saving...' : 'Save as Draft'}
               </button>
               <button 
                 onClick={() => {
-                  if (isResubmitting && !file) {
-                    alert('You must upload a new file to update your submission!');
-                    return;
-                  }
                   if (!file && !submission) {
                     alert('Please upload a file first!');
                     return;

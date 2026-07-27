@@ -157,15 +157,25 @@ const ClassDetailPage = () => {
                                       </div>
                                     </div>
                                     {submission ? (
-                                      <button 
-                                        disabled
-                                        className="px-4 py-2 bg-gray-300 text-white rounded-lg text-sm font-bold flex items-center cursor-not-allowed"
-                                      >
-                                        Submitted <ArrowRight className="w-4 h-4 ml-1 opacity-50" />
-                                      </button>
+                                      isTest ? (
+                                        <button 
+                                          disabled
+                                          className="px-4 py-2 bg-gray-300 text-white rounded-lg text-sm font-bold flex items-center cursor-not-allowed"
+                                        >
+                                          Submitted <ArrowRight className="w-4 h-4 ml-1 opacity-50" />
+                                        </button>
+                                      ) : (
+                                        <Link 
+                                          to={`/student/assignments/${assignment._id}/submit`}
+                                          state={{ returnUrl: location.pathname }}
+                                          className="px-4 py-2 bg-[#4318FF] text-white rounded-lg text-sm font-bold shadow-md shadow-blue-200 hover:bg-blue-700 transition-colors flex items-center"
+                                        >
+                                          Update <ArrowRight className="w-4 h-4 ml-1" />
+                                        </Link>
+                                      )
                                     ) : (
                                       <Link 
-                                        to={assignment.type === 'test' ? `/student/assignments/${assignment._id}/test` : `/student/assignments/${assignment._id}/submit`}
+                                        to={isTest ? `/student/assignments/${assignment._id}/test` : `/student/assignments/${assignment._id}/submit`}
                                         state={{ returnUrl: location.pathname }}
                                         className="px-4 py-2 bg-[#F26F21] text-white rounded-lg text-sm font-bold shadow-md shadow-orange-200 hover:bg-[#E86115] transition-colors flex items-center"
                                       >

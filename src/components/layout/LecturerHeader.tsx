@@ -1,63 +1,48 @@
+import React, { useEffect, useState } from 'react';
 import { Bell, ChevronDown, Search } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { ROUTES } from '../../config/routes';
 import { NotificationDropdown } from '../common/NotificationDropdown';
+import { semesterService } from '../../services/semester.service';
 
 export const LecturerHeader = () => {
   const location = useLocation();
+  const [semesters, setSemesters] = useState<any[]>([]);
+  const [currentSemesterId, setCurrentSemesterId] = useState('');
   
-  let title: string;
-  let description: string;
-  let showSearch = false;
+  useEffect(() => {
+    const fetchSemesters = async () => {
+      try {
+        const [semestersList, currentSem] = await Promise.all([
+          semesterService.getSemesters(),
+          semesterService.getCurrentSemester()
+        ]);
+        setSemesters(semestersList);
+        if (currentSem) setCurrentSemesterId(currentSem._id);
+      } catch (error) {
+        console.error("Failed to load semesters for header", error);
+      }
+    };
+    fetchSemesters();
+  }, []);
 
   if (location.pathname === ROUTES.DASHBOARD_LECTURER) {
-    title = 'Lecturer Dashboard';
-    description = 'Overview of your classes and pending evaluations';
+    // Keep it empty, we don't render title anymore
   } else if (location.pathname === ROUTES.CLASSES) {
-    title = 'My Subjects';
-    description = 'Manage your enrolled subjects and classes';
-    showSearch = true;
+    // Keep it empty, we don't render title anymore
   } else if (location.pathname === ROUTES.GRADING_SUBJECTS) {
-    title = 'Grading';
-    description = 'Manage your enrolled subjects and classes';
-    showSearch = true;
+    // Keep it empty, we don't render title anymore
   } else if (location.pathname === ROUTES.NEWS) {
-    title = 'News & Announcements';
-    description = 'Stay updated with the latest faculty news';
-    showSearch = true;
+    // Keep it empty, we don't render title anymore
   } else {
     // Hide default header for all other Lecturer pages (they use custom edge-to-edge headers)
     return null;
   }
 
   return (
-    <header className="h-24 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-10 sticky top-0 z-10 shrink-0">
-      <div>
-        <h1 className="text-2xl font-extrabold text-[#1B2559]">{title}</h1>
-        {description && <p className="text-sm font-medium text-gray-500 mt-1">{description}</p>}
-      </div>
+    <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-end px-10 sticky top-0 z-10 shrink-0">
       
       <div className="flex items-center space-x-6">
-        {/* Search */}
-        {showSearch && (
-          <div className="flex items-center bg-gray-50 rounded-full px-5 py-2.5 border border-gray-200 w-64 hidden md:flex">
-            <Search className="w-5 h-5 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search..." 
-              className="bg-transparent border-none outline-none ml-3 w-full text-sm font-medium text-gray-700 placeholder-gray-400" 
-            />
-          </div>
-        )}
-
-        {/* Semester Selector */}
-        <div className="relative">
-          <select className="appearance-none bg-gray-50 border border-gray-200 text-[#1B2559] text-sm font-bold rounded-xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-[#F26F21]/20 focus:border-[#F26F21] transition-all cursor-pointer">
-            <option value="SP2026">Spring 2026</option>
-            <option value="FA2025">Fall 2025</option>
-          </select>
-          <ChevronDown className="w-4 h-4 text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
 
         <NotificationDropdown />
 

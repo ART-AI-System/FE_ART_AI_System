@@ -30,6 +30,8 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
   const { user } = useAuth();
   const currentStudentId = user?.id || (user as any)?.studentId || (user as any)?._id || '';
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
+  const [gradeResult, setGradeResult] = useState<any>(null);
+  const [unavailableMembers, setUnavailableMembers] = useState<string[]>([]);
   
   // AI Interaction state from the form
   const [aiData, setAiData] = useState<any>({});
@@ -41,9 +43,28 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
   const [isResubmitting, setIsResubmitting] = useState(false);
 
   useEffect(() => {
+    if (status === 'GRADED' && submission?._id) {
+      import('../../api/axiosClient').then((m) => {
+        m.default.get(`/submissions/${submission._id}/grade`)
+          .then((res: any) => setGradeResult(res.result || res.data?.result || res))
+          .catch(console.error);
+      });
+    }
+  }, [status, submission]);
+
+  useEffect(() => {
     if (submission?._id) {
       submissionService.getSubmissionVersions(submission._id)
         .then((res: any) => setVersions(res.result || []))
+        .catch(console.error);
+        
+      submissionService.getAiInteractions(submission._id)
+        .then((res: any) => {
+          const aiItems = res.result || res.data?.result || [];
+          if (aiItems.length > 0) {
+            setAiData(aiItems);
+          }
+        })
         .catch(console.error);
         
       if (submission.groupMembers && submission.groupMembers.length > 0) {
@@ -59,6 +80,13 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
   useEffect(() => {
     if (assignment?.classId) {
       classService.getClassById(assignment.classId).then((res) => setClassData(res)).catch(console.error);
+    }
+    if (assignment?.isGroupAssignment && assignment._id) {
+      import('../../api/axiosClient').then((m) => {
+        m.default.get(`/assignments/${assignment._id}/grouped-students`)
+          .then((res: any) => setUnavailableMembers(res.result || res.data?.result || []))
+          .catch(console.error);
+      });
     }
   }, [assignment]);
 
@@ -98,43 +126,44 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
     try {
       let currentSubmissionId = submission?._id;
 
-      // 1. If there's a new file, upload it first to create/update draft
-      if (file) {
-        if (!submission) {
-          const res: any = await submissionService.createSubmission(assignment._id, file, '', groupMembers);
-          currentSubmissionId = res?.result?._id || res?.data?.result?._id;
-        } else {
-          const res: any = await submissionService.resubmitVersion(submission._id, file, '', groupMembers);
-          currentSubmissionId = res?.result?._id || res?.data?.result?._id || currentSubmissionId;
-        }
-      } else if (!file && submission) {
-        // If no file but submission exists, update group members before finalizing
-        await submissionService.updateGroupMembers(submission._id, groupMembers);
+      // 1. Upload or create new submission version
+      if (!submission) {
+        if (!file) throw new Error("Please upload a file first.");
+        const res: any = await submissionService.createSubmission(assignment._id, file, '', groupMembers);
+        currentSubmissionId = res?.result?._id || res?.data?.result?._id;
+      } else {
+        // If we have a submission, we create a new version (with or without a new file)
+        const res: any = await submissionService.resubmitVersion(submission._id, file, '', groupMembers);
+        currentSubmissionId = res?.result?._id || res?.data?.result?._id || currentSubmissionId;
       }
       
       if (!currentSubmissionId) {
-        throw new Error("No submission found to finalize. Please upload a file.");
+        throw new Error("No submission found to finalize.");
       }
 
       // 2. Save AI Interactions
       if (formData && formData.length > 0) {
         await Promise.all(
-          formData.map((interaction: any) => 
-            submissionService.createAiInteractions(currentSubmissionId, {
+          formData.map((interaction: any) => {
+            return submissionService.createAiInteractions(currentSubmissionId, {
               aiTool: interaction.aiTool,
               usagePurpose: interaction.usagePurpose,
               promptContent: interaction.promptContent,
               aiResponseSummary: interaction.aiResponseSummary,
               studentDecision: interaction.studentDecision,
               reflectionText: interaction.reflectionText
-            })
-          )
+            });
+          })
         );
       }
 
       // 3. Finalize
       await submissionService.finalizeSubmission(currentSubmissionId);
       onRefresh();
+      
+      // Reset UI state to exit "Update mode"
+      setIsResubmitting(false);
+      setCurrentStep(1);
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.message || err.message || 'Failed to finalize submission.');
@@ -153,13 +182,14 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
     }
   };
 
-  const showForm = status !== 'SUBMITTED' && status !== 'LATE' || isResubmitting;
+  const showForm = (status !== 'SUBMITTED' && status !== 'LATE' && status !== 'GRADED') || isResubmitting;
 
   return (
     <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-8 relative overflow-hidden">
       <div className="flex items-center justify-between mb-8 relative z-10">
         <h3 className="text-lg font-extrabold text-[#1B2559]">Submission Status</h3>
         <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+          status === 'GRADED' ? 'bg-blue-100 text-blue-700' :
           status === 'SUBMITTED' ? 'bg-green-100 text-green-700' :
           status === 'LATE' ? 'bg-orange-100 text-orange-700' :
           status === 'DRAFT' ? 'bg-gray-100 text-gray-700' :
@@ -179,10 +209,6 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
           <div className={`w-10 h-0.5 ${currentStep === 2 ? 'bg-green-400' : 'bg-gray-200'}`}></div>
           <button 
             onClick={() => {
-              if (isResubmitting && !file) {
-                alert('You must upload a new file to update your submission!');
-                return;
-              }
               if (!file && !submission) {
                 alert('Please upload a file first!');
                 return;
@@ -205,37 +231,50 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
       {showForm && (
         <div>
           <div className={currentStep === 1 ? 'block animate-fade-in' : 'hidden'}>
-            <FileUploadSection onFileSelect={setFile} />
+            <FileUploadSection onFileSelect={setFile} initialFileName={submission?.fileName} />
             
             {assignment?.isGroupAssignment && classData && classData.students && (
               <div className="mt-6 p-4 border border-gray-100 rounded-xl bg-gray-50/80">
                 <h4 className="text-sm font-bold text-[#1B2559] mb-3">Group Members</h4>
-                <p className="text-xs text-gray-500 mb-3">Select your group members. You are automatically selected as the representative submitter.</p>
+                <p className="text-xs text-gray-500 mb-3">Select your group members. You are automatically selected as the representative submitter. Students already in a group cannot be selected.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-48 overflow-y-auto pr-2">
-                  {Array.from(new Map(classData.students.map((s: any) => [s.studentId, s])).values()).map((student: any) => {
-                    const isCurrentUser = student.studentId === currentStudentId;
-                    return (
-                    <label key={student.studentId} className={`flex items-center space-x-3 bg-white p-3 rounded-lg border cursor-pointer transition-colors ${isCurrentUser ? 'border-[#4318FF] bg-blue-50/30' : 'border-gray-200 hover:border-[#4318FF]'}`}>
-                      <input 
-                        type="checkbox" 
-                        className="rounded text-[#4318FF] focus:ring-[#4318FF] w-4 h-4 disabled:opacity-50"
-                        checked={isCurrentUser || groupMembers.includes(student.studentId)}
-                        disabled={isCurrentUser}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setGroupMembers([...groupMembers, student.studentId]);
-                          } else {
-                            setGroupMembers(groupMembers.filter(id => id !== student.studentId));
-                          }
-                        }}
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-gray-800">{student.fullName} {isCurrentUser && '(You)'}</span>
-                        <span className="text-xs text-gray-500">{student.studentCode}</span>
-                      </div>
-                    </label>
-                    );
-                  })}
+                  {(() => {
+                    const trulyUnavailable = unavailableMembers.filter(id => {
+                      if (!submission) return true;
+                      if (submission.studentId === id || submission.studentId?._id === id) return false;
+                      const initialMembers = submission.groupMembers || [];
+                      return !initialMembers.some((m: any) => (m._id || m) === id);
+                    });
+
+                    return Array.from(new Map(classData.students.map((s: any) => [s.studentId, s])).values()).map((student: any) => {
+                      const isCurrentUser = student.studentId === currentStudentId;
+                      const isUnavailable = trulyUnavailable.includes(student.studentId) && !isCurrentUser;
+                      
+                      return (
+                      <label key={student.studentId} className={`flex items-center space-x-3 p-3 rounded-lg border transition-colors ${isCurrentUser ? 'border-[#4318FF] bg-blue-50/30' : isUnavailable ? 'bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed' : 'bg-white border-gray-200 hover:border-[#4318FF] cursor-pointer'}`}>
+                        <input 
+                          type="checkbox" 
+                          className="rounded text-[#4318FF] focus:ring-[#4318FF] w-4 h-4 disabled:opacity-50"
+                          checked={isCurrentUser || groupMembers.includes(student.studentId)}
+                          disabled={isCurrentUser || isUnavailable}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setGroupMembers([...groupMembers, student.studentId]);
+                            } else {
+                              setGroupMembers(groupMembers.filter(id => id !== student.studentId));
+                            }
+                          }}
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-gray-800">
+                            {student.fullName} {isCurrentUser && '(You)'} {isUnavailable && <span className="text-red-500 font-bold ml-1 text-[10px] uppercase">(Grouped)</span>}
+                          </span>
+                          <span className="text-xs text-gray-500">{student.studentCode}</span>
+                        </div>
+                      </label>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}
@@ -243,17 +282,13 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
             <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end">
               <button 
                 onClick={handleSaveDraft}
-                disabled={isUploading || (!file && !submission) || (isResubmitting && !file)}
+                disabled={isUploading || (!file && !submission)}
                 className="bg-gray-100 text-gray-600 px-6 py-3 rounded-xl text-sm font-bold hover:bg-gray-200 mr-4 disabled:opacity-50"
               >
                 {isUploading ? 'Saving...' : 'Save as Draft'}
               </button>
               <button 
                 onClick={() => {
-                  if (isResubmitting && !file) {
-                    alert('You must upload a new file to update your submission!');
-                    return;
-                  }
                   if (!file && !submission) {
                     alert('Please upload a file first!');
                     return;
@@ -283,13 +318,56 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
       )}
 
       {/* FINALIZED STATE */}
-      {(status === 'SUBMITTED' || status === 'LATE') && !isResubmitting && (
+      {(status === 'SUBMITTED' || status === 'LATE' || status === 'GRADED') && !isResubmitting && (
         <div className="bg-green-50 rounded-2xl p-6 border border-green-100 mb-8 flex flex-col items-center justify-center text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
             <CheckCircle2 className="w-8 h-8 text-green-600" />
           </div>
-          <h4 className="text-lg font-bold text-green-800 mb-1">Submission Successful</h4>
-          <p className="text-sm text-green-600 mb-6">Your assignment has been finalized and submitted to the lecturer.</p>
+          <h4 className="text-lg font-bold text-green-800 mb-1">
+            {status === 'GRADED' ? 'Assignment Graded' : 'Submission Successful'}
+          </h4>
+          <p className="text-sm text-green-600 mb-6">
+            {status === 'GRADED' 
+              ? 'Your lecturer has graded this assignment.' 
+              : 'Your assignment has been finalized and submitted to the lecturer.'}
+          </p>
+          
+          {status === 'GRADED' && gradeResult && (
+            <div className="w-full max-w-md bg-white rounded-xl border border-green-200 p-6 mb-6 text-left shadow-sm">
+              <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-100">
+                <span className="text-sm font-bold text-gray-500 uppercase">Final Score</span>
+                <span className="text-3xl font-extrabold text-[#4318FF]">{gradeResult.score} / {gradeResult.maxScore || 10}</span>
+              </div>
+              <div>
+                <span className="text-sm font-bold text-gray-500 uppercase mb-2 block">Lecturer Feedback</span>
+                <p className="text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100 italic">
+                  "{gradeResult.feedback || 'No additional feedback provided.'}"
+                </p>
+              </div>
+            </div>
+          )}
+
+          {assignment?.isGroupAssignment && submission?.groupMembers?.length > 0 && classData?.students && (
+            <div className="w-full max-w-md bg-white rounded-xl border border-green-200 p-4 mb-6 text-left shadow-sm">
+              <span className="text-sm font-bold text-gray-500 uppercase mb-3 block border-b pb-2">Group Members</span>
+              <ul className="space-y-2">
+                {submission.groupMembers.map((memberId: string | any) => {
+                  const idStr = typeof memberId === 'object' ? memberId._id || memberId.studentId : memberId;
+                  const studentInfo = classData.students.find((s: any) => s.studentId === idStr);
+                  const isSubmitter = idStr === (submission.studentId?._id || submission.studentId);
+                  return (
+                    <li key={idStr} className="text-sm font-medium text-gray-700 flex items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
+                      <div className={`w-2 h-2 rounded-full mr-3 ${isSubmitter ? 'bg-orange-500' : 'bg-green-500'}`}></div>
+                      <span className="font-bold">{studentInfo ? studentInfo.fullName : 'Unknown Student'}</span>
+                      <span className="text-xs text-gray-400 ml-2">({studentInfo?.studentCode || 'N/A'})</span>
+                      {isSubmitter && <span className="ml-auto text-[10px] font-black uppercase text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">Submitter</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
           <div className="flex items-center space-x-4">
             <button 
               onClick={handleDownloadLatest}
@@ -297,15 +375,17 @@ const StudentSubmissionPanel: React.FC<StudentSubmissionPanelProps> = ({ assignm
             >
               <Download className="w-4 h-4 mr-2" /> Download Final File
             </button>
-            <button 
-              onClick={() => {
-                setIsResubmitting(true);
-                setCurrentStep(1);
-              }}
-              className="flex items-center px-6 py-2.5 bg-[#1B2559] text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors"
-            >
-              Update Submission
-            </button>
+            {status !== 'GRADED' && (
+              <button 
+                onClick={() => {
+                  setIsResubmitting(true);
+                  setCurrentStep(1);
+                }}
+                className="flex items-center px-6 py-2.5 bg-[#1B2559] text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors"
+              >
+                Update Submission
+              </button>
+            )}
           </div>
         </div>
       )}

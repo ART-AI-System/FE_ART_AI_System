@@ -2,19 +2,30 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { BookOpen, Calendar, GraduationCap } from 'lucide-react';
 import { analyticsService } from '../../services/analytics.service';
+import { semesterService } from '../../services/semester.service';
 import { Link } from 'react-router-dom';
 
 const StudentDashboard = () => {
   const { user } = useAuth();
   const [data, setData] = useState<any>(null);
+  const [semesters, setSemesters] = useState<any[]>([]);
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const fetchHomeData = async () => {
+    const fetchInitialData = async () => {
       try {
-        const result = await analyticsService.getStudentHome();
-        setData(result);
+        setLoading(true);
+        const [semestersList, homeData] = await Promise.all([
+          semesterService.getSemesters(),
+          analyticsService.getStudentHome()
+        ]);
+        setSemesters(semestersList);
+        setData(homeData);
+        if (homeData?.currentSemester) {
+          setSelectedSemester(homeData.currentSemester._id);
+        }
       } catch (err: any) {
         console.error('Failed to fetch student home:', err);
         setError(err?.response?.data?.message || 'Failed to load dashboard data.');
@@ -22,18 +33,48 @@ const StudentDashboard = () => {
         setLoading(false);
       }
     };
-
-    fetchHomeData();
+    fetchInitialData();
   }, []);
+
+  const handleSemesterChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const semId = e.target.value;
+    setSelectedSemester(semId);
+    try {
+      setLoading(true);
+      const homeData = await analyticsService.getStudentHome(semId);
+      setData(homeData);
+    } catch (error) {
+      console.error('Failed to load classes for semester:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const currentSemester = data?.currentSemester;
   const subjects = data?.subjects ?? [];
 
   return (
     <div className="flex flex-col h-full animate-fade-in p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-[#1B2559]">Welcome back, {user?.fullName}!</h1>
-        <p className="text-gray-500 font-medium mt-2">Here is your current academic overview.</p>
+      <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
+        <div>
+          <h1 className="text-3xl font-extrabold text-[#1B2559]">Welcome back, {user?.fullName}!</h1>
+          <p className="text-gray-500 font-medium mt-2">Here is your academic overview.</p>
+        </div>
+        <div className="mt-4 md:mt-0 relative">
+          <select 
+            value={selectedSemester}
+            onChange={handleSemesterChange}
+            disabled={loading}
+            className="appearance-none bg-white border border-gray-200 text-[#1B2559] text-sm font-bold rounded-xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-[#4318FF]/20 focus:border-[#4318FF] shadow-sm transition-all cursor-pointer disabled:opacity-50"
+          >
+            {semesters.map(sem => (
+              <option key={sem._id} value={sem._id}>{sem.name}</option>
+            ))}
+            {semesters.length === 0 && (
+              <option value="">{currentSemester?.name || 'Current Semester'}</option>
+            )}
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -43,7 +84,7 @@ const StudentDashboard = () => {
           </div>
           <div>
             <h3 className="text-3xl font-extrabold text-[#1B2559]">{currentSemester?.name || 'N/A'}</h3>
-            <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mt-1">Current Semester</p>
+            <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mt-1">Viewing Semester</p>
           </div>
         </div>
 

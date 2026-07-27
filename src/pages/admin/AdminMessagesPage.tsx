@@ -89,11 +89,12 @@ const AdminMessagesPage = () => {
         try {
           const newRoom = await chatService.createRoom([contactId], 'direct');
           
-          // Join room immediately and send message so it saves to DB
+          // Join room immediately and send message via socket
           chatSocketService.getSocket()?.emit('chat:join_room', { roomId: newRoom._id });
-          const sentMsg = await chatService.sendMessage(newRoom._id, content);
-          newRoom.lastMessage = sentMsg.content;
-          newRoom.lastMessageAt = sentMsg.createdAt;
+          sendMessage(content, newRoom._id);
+          
+          newRoom.lastMessage = content;
+          newRoom.lastMessageAt = new Date().toISOString();
           
           // Update UI state - this will trigger useMessages to fetch the newly created message
           setConversations(prev => {
@@ -337,30 +338,32 @@ const AdminMessagesPage = () => {
                   )}
 
                   {messages.map((msg) => {
-                    const isMe = msg.senderId === user?.id;
+                    const currentUserId = String((user as any)?._id || user?.id || '');
+                    const msgSenderId = String((msg.senderId as any)?._id || msg.senderId || '');
+                    const isMe = Boolean(currentUserId && msgSenderId && currentUserId === msgSenderId);
                     const time = new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                     const isRead = msg.readBy && msg.readBy.length > 1;
 
                     if (isMe) {
                       return (
-                        <div key={msg._id} className="flex justify-end max-w-[70%] ml-auto">
+                        <div key={msg._id} className="flex justify-end max-w-[75%] ml-auto">
                           <div className="flex flex-col items-end">
-                            <div className="bg-[#4318FF] text-white px-5 py-3.5 rounded-[20px] rounded-br-sm shadow-md shadow-blue-500/20 text-sm leading-relaxed">
+                            <div className="bg-gradient-to-r from-[#4318FF] to-[#3B82F6] text-white px-5 py-3 rounded-2xl rounded-br-xs shadow-md shadow-blue-500/15 text-sm font-medium leading-relaxed">
                               {msg.content}
                             </div>
                             <div className="flex items-center mt-1 mr-1">
                               <span className="text-[10px] font-bold text-gray-400 mr-1.5">{time}</span>
-                              {isRead ? <CheckCheck className="w-3.5 h-3.5 text-blue-500" /> : <Check className="w-3.5 h-3.5 text-gray-400" />}
+                              {isRead ? <CheckCheck className="w-3.5 h-3.5 text-[#4318FF]" /> : <Check className="w-3.5 h-3.5 text-gray-400" />}
                             </div>
                           </div>
                         </div>
                       );
                     } else {
                       return (
-                        <div key={msg._id} className="flex max-w-[70%]">
-                          <img src={otherMember?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherMember?.fullName || 'User')}&background=F26F21&color=fff`} className="w-8 h-8 rounded-full mr-3 self-end shadow-sm" alt="Avatar" />
+                        <div key={msg._id} className="flex max-w-[75%] items-end space-x-3">
+                          <img src={otherMember?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherMember?.fullName || 'User')}&background=F26F21&color=fff`} className="w-8 h-8 rounded-full shrink-0 shadow-sm self-end mb-5" alt="Avatar" />
                           <div>
-                            <div className="bg-white border border-gray-100 text-[#1B2559] px-5 py-3.5 rounded-[20px] rounded-bl-sm shadow-sm text-sm leading-relaxed">
+                            <div className="bg-white border border-gray-200/80 text-[#1B2559] px-5 py-3 rounded-2xl rounded-bl-xs shadow-xs text-sm font-medium leading-relaxed">
                               {msg.content}
                             </div>
                             <span className="text-[10px] font-bold text-gray-400 mt-1 ml-1 block">{time}</span>

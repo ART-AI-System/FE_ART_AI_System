@@ -35,6 +35,13 @@ const StudentSubmission = () => {
           setSubmission(extractedSub);
         }
 
+        // Redirect to test page if it's a test
+        const fetchedAssignment = assignData.data?.result || assignData.result || assignData;
+        if (fetchedAssignment?.type === 'test') {
+          navigate(`/student/assignments/${assignmentId}/test`, { replace: true });
+          return;
+        }
+
         const matData: any = materialsRes;
         setMaterials(matData.data?.result || matData.result || matData || []);
       } catch (err) {

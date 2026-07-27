@@ -3,9 +3,10 @@ import { CheckCircle2, FileCode, Upload, X } from 'lucide-react';
 
 interface FileUploadSectionProps {
   onFileSelect: (file: File | null) => void;
+  initialFileName?: string;
 }
 
-const FileUploadSection: React.FC<FileUploadSectionProps> = ({ onFileSelect }) => {
+const FileUploadSection: React.FC<FileUploadSectionProps> = ({ onFileSelect, initialFileName }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -29,13 +30,13 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({ onFileSelect }) =
     <div className="mb-8 border-b border-gray-100 pb-8">
       <div className="flex justify-between items-center mb-4">
         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider flex items-center">
-          {selectedFile ? (
-            <><CheckCircle2 className="w-4 h-4 text-green-500 mr-2" /> Step 1: File Uploaded</>
+          {selectedFile || initialFileName ? (
+            <><CheckCircle2 className="w-4 h-4 text-green-500 mr-2" /> Step 1: File {selectedFile ? 'Uploaded' : 'Available'}</>
           ) : (
             <><Upload className="w-4 h-4 text-blue-500 mr-2" /> Step 1: Upload Submission File</>
           )}
         </h4>
-        {selectedFile && (
+        {(selectedFile || initialFileName) && (
           <button onClick={() => fileInputRef.current?.click()} className="text-xs font-bold text-[#4318FF] hover:underline">
             Change File
           </button>
@@ -49,7 +50,7 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({ onFileSelect }) =
         className="hidden" 
       />
 
-      {!selectedFile ? (
+      {!selectedFile && !initialFileName ? (
         <div 
           onClick={() => fileInputRef.current?.click()}
           className="border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-[#4318FF] hover:bg-blue-50/50 transition-colors"
@@ -60,7 +61,24 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({ onFileSelect }) =
           <p className="text-sm font-bold text-[#1B2559]">Click to browse or drag and drop</p>
           <p className="text-xs text-gray-500 mt-1">PDF, ZIP, RAR, DOCX, TXT (Max 10MB)</p>
         </div>
-      ) : (
+      ) : !selectedFile && initialFileName ? (
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex items-center justify-between shadow-sm">
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-white rounded-lg border border-gray-200 flex items-center justify-center mr-4 shadow-sm">
+              <FileCode className="w-5 h-5 text-gray-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#1B2559]">Previous File: {initialFileName}</p>
+              <p className="text-xs text-gray-500 font-medium">
+                Upload a new file to replace this, or leave as is to keep the current file.
+              </p>
+            </div>
+          </div>
+          <button onClick={() => fileInputRef.current?.click()} className="p-2 text-blue-600 hover:text-blue-800 transition-colors font-bold text-sm bg-blue-100 hover:bg-blue-200 px-4 rounded-lg ml-4">
+            Upload New File
+          </button>
+        </div>
+      ) : selectedFile ? (
         <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl flex items-center justify-between">
           <div className="flex items-center">
             <div className="w-10 h-10 bg-white rounded-lg border border-gray-200 flex items-center justify-center mr-4">
@@ -77,7 +95,7 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({ onFileSelect }) =
             <X className="w-5 h-5" />
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };

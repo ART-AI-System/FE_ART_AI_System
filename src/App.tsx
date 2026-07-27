@@ -20,6 +20,7 @@ import LecturerAssignmentCreate from './pages/lecturer/LecturerAssignmentCreate'
 import LecturerSubmissionList from './pages/lecturer/LecturerSubmissionList';
 import LecturerCreateTestPage from './pages/lecturer/LecturerCreateTestPage';
 import LecturerEditSlotPage from './pages/lecturer/LecturerEditSlotPage';
+import StudentTakeTestPage from './pages/student/StudentTakeTestPage';
 import ClassGradebook from './pages/lecturer/ClassGradebook';
 import StudentMessagesPage from './pages/student/StudentMessagesPage';
 import LecturerMessagesPage from './pages/lecturer/LecturerMessagesPage';
@@ -32,6 +33,14 @@ import AdminSubjects from './pages/admin/AdminSubjects';
 import AdminMessagesPage from './pages/admin/AdminMessagesPage';
 import AdminTeachers from './pages/admin/AdminTeachers';
 import AdminClasses from './pages/admin/AdminClasses';
+
+// Subject Head Pages
+import SubjectHeadLayout from './layouts/SubjectHeadLayout';
+import SubjectHeadDashboardPage from './pages/subjectHead/SubjectHeadDashboardPage';
+import SuspiciousCasesPage from './pages/subjectHead/SuspiciousCasesPage';
+import SubjectHeadMessagesPage from './pages/subjectHead/SubjectHeadMessagesPage';
+import GradeReportsApprovalPage from './pages/subjectHead/GradeReportsApprovalPage';
+import SubjectAnalyticsPage from './pages/subjectHead/SubjectAnalyticsPage';
 
 import SettingsPage from './pages/SettingsPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -71,6 +80,7 @@ function AppRoutes() {
         <Route path="assignments">
           <Route index element={<StudentAssignments />} />
           <Route path=":assignmentId/submit" element={<StudentSubmission />} />
+          <Route path=":assignmentId/test" element={<StudentTakeTestPage />} />
           <Route path="success" element={<StudentSubmitSuccess />} />
         </Route>
         
@@ -116,6 +126,18 @@ function AppRoutes() {
         <Route path="messages" element={<AdminMessagesPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
+
+      {/* Subject Head Routes */}
+      <Route path="/subject-head" element={<SubjectHeadLayout />}>
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<SubjectHeadDashboardPage />} />
+        <Route path="grade-approvals" element={<GradeReportsApprovalPage />} />
+        <Route path="suspicious-cases" element={<SuspiciousCasesPage />} />
+        <Route path="subjects" element={<SubjectAnalyticsPage />} />
+        <Route path="messages" element={<SubjectHeadMessagesPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+      </Route>
+      <Route path="/headsubject/*" element={<Navigate to="/subject-head/dashboard" replace />} />
     </Routes>
   );
 }

@@ -26,6 +26,7 @@ const LecturerGradingDetail: React.FC = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [submission, setSubmission] = useState<any>(null);
   const [aiEvaluation, setAiEvaluation] = useState<any>(null);
+  const [gradeItem, setGradeItem] = useState<any>(null);
   const [student, setStudent] = useState<any>(null);
 
   useEffect(() => {
@@ -35,6 +36,15 @@ const LecturerGradingDetail: React.FC = () => {
         const subRes: any = await axiosClient.get(`/submissions/${id}`);
         const subData = subRes.result || subRes.data || subRes;
         setSubmission(subData);
+
+        if (subData?.gradeItemId) {
+          try {
+            const gradeItemRes: any = await axiosClient.get(`/grade-items/standalone/${subData.gradeItemId}`);
+            setGradeItem(gradeItemRes.result || gradeItemRes.data || gradeItemRes);
+          } catch (e) {
+            console.error('Failed to load grade item', e);
+          }
+        }
 
         if (targetStudentId) {
           try {
@@ -108,6 +118,26 @@ const LecturerGradingDetail: React.FC = () => {
   const isFlagged = aiEvaluation?.riskLevel === 'high';
   const dependencyScore = aiEvaluation?.aiDependencyScore;
 
+  const isTest = gradeItem?.type === 'test';
+  
+  const getTestScore = () => {
+    if (!isTest || !submission?.note || !gradeItem?.questions) return 0;
+    try {
+      const answers = JSON.parse(submission.note);
+      let score = 0;
+      gradeItem.questions.forEach((q: any) => {
+        const selectedOptionId = answers[q._id];
+        const correctOption = q.options.find((o: any) => o.isCorrect);
+        if (correctOption && selectedOptionId === correctOption._id) {
+          score += q.points;
+        }
+      });
+      return score;
+    } catch {
+      return 0;
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 font-inter animate-fade-in absolute inset-0 z-50">
       {/* TOP HEADER (Compact) */}
@@ -144,9 +174,32 @@ const LecturerGradingDetail: React.FC = () => {
         </div>
         
         <div className="flex items-center space-x-3">
-          <span className="hidden lg:inline-flex items-center px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-xs font-bold text-blue-100">
-            <Sparkles className="w-4 h-4 mr-2" /> AI suggests; lecturer decides and publishes
-          </span>
+          {isTest ? (
+            <button 
+              onClick={async () => {
+                if (window.confirm('Are you sure you want to allow this student to retake the test? Their current submission will be permanently deleted.')) {
+                  try {
+                    await axiosClient.delete(`/submissions/${id}`);
+                    alert('Submission deleted. Student can now retake the test.');
+                    navigate(-1);
+                  } catch (e) {
+                    console.error('Failed to allow retake', e);
+                    alert('Failed to delete submission.');
+                  }
+                }
+              }}
+              className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-lg hover:bg-red-100 transition-all flex items-center"
+            >
+              <RefreshCcw className="w-4 h-4 mr-2" /> Allow Retake
+            </button>
+          ) : (
+            <button className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-lg hover:bg-red-100 transition-all flex items-center">
+              <RefreshCcw className="w-4 h-4 mr-2" /> Request Resubmit
+            </button>
+          )}
+          <button className="px-4 py-2 bg-white/10 text-white border border-white/20 text-xs font-bold rounded-lg hover:bg-white/20 transition-all flex items-center">
+            <Save className="w-4 h-4 mr-2" /> Save Draft
+          </button>
           <button 
             onClick={handlePublishGrade}
             disabled={isPublishing}
@@ -159,8 +212,18 @@ const LecturerGradingDetail: React.FC = () => {
 
       {/* SPLIT VIEW CONTAINER */}
       <div className="flex-1 flex overflow-hidden">
-        {/* LEFT PANE: FILE VIEWER */}
-        <SubmissionFileViewer submissionId={id || ''} submissionInfo={submission} />
+        {/* LEFT PANE: FILE VIEWER OR TEST SCORE */}
+        {isTest ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-10 bg-white border-r border-gray-200">
+            <h2 className="text-2xl font-bold text-[#1B2559] mb-4">Test Auto-Graded Score</h2>
+            <div className="w-40 h-40 rounded-full border-[10px] border-green-500 flex items-center justify-center mb-6 shadow-lg shadow-green-500/20">
+              <span className="text-5xl font-extrabold text-green-600">{getTestScore()}</span>
+            </div>
+            <p className="text-gray-500 font-medium text-lg">Total Points: {gradeItem?.totalPoints || 10}</p>
+          </div>
+        ) : (
+          <SubmissionFileViewer submissionId={id || ''} submissionInfo={submission} />
+        )}
 
         {/* RIGHT PANE: EVALUATION PANEL */}
         <EvaluationPanel

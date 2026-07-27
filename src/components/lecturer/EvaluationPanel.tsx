@@ -470,13 +470,14 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
               {loadingAi ? (
                 <SkeletonDeclarationTable />
               ) : (
-                <div className="max-h-[300px] overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin' }}>
-                  <table className="w-full text-left text-xs text-gray-600">
+                <div className="max-h-[300px] overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
+                  <table className="w-full text-left text-xs text-gray-600 min-w-[800px]">
                     <thead className="bg-gray-50/90 border-b border-gray-100 font-extrabold text-[#1B2559] uppercase tracking-wider sticky top-0 z-10">
                       <tr>
-                        <th className="px-3.5 py-3 w-1/4">Phase</th>
-                        <th className="px-3.5 py-3 w-1/3">Prompt</th>
-                        <th className="px-3.5 py-3 w-5/12">AI Output & Reflection</th>
+                        <th className="px-3.5 py-3 w-[15%]">Phase</th>
+                        <th className="px-3.5 py-3 w-[25%]">Prompt</th>
+                        <th className="px-3.5 py-3 w-[30%]">AI Output</th>
+                        <th className="px-3.5 py-3 w-[30%]">Reflection</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -502,16 +503,18 @@ const EvaluationPanel: React.FC<EvaluationPanelProps> = ({ submissionId, aiEvalu
                                 </span>
                               </td>
                               <td className="px-3.5 py-3 align-top">
-                                <div className="max-h-20 overflow-y-auto pr-1 bg-gray-50/80 p-2 rounded-lg border border-gray-100/80 leading-relaxed font-mono text-[11px]" style={{ scrollbarWidth: 'thin' }}>
+                                <div className="max-h-24 overflow-y-auto pr-1 bg-gray-50/80 p-2 rounded-lg border border-gray-100/80 leading-relaxed font-mono text-[11px]" style={{ scrollbarWidth: 'thin' }}>
                                   {item.promptContent || item.prompt || 'N/A'}
                                 </div>
                               </td>
-                              <td className="px-3.5 py-3 align-top space-y-1.5">
-                                <div className="bg-blue-50/60 p-2 rounded-lg border border-blue-100/70 text-[11px] leading-relaxed">
-                                  <span className="font-extrabold text-blue-700 block mb-0.5">🤖 AI Output:</span> 
+                              <td className="px-3.5 py-3 align-top">
+                                <div className="max-h-24 overflow-y-auto pr-1 bg-blue-50/60 p-2 rounded-lg border border-blue-100/70 text-[11px] leading-relaxed" style={{ scrollbarWidth: 'thin' }}>
+                                  <span className="font-extrabold text-blue-700 block mb-0.5">🤖 Output:</span> 
                                   {item.aiResponseSummary || item.outputSummary || 'N/A'}
                                 </div>
-                                <div className="bg-green-50/60 p-2 rounded-lg border border-green-100/70 text-[11px] leading-relaxed">
+                              </td>
+                              <td className="px-3.5 py-3 align-top">
+                                <div className="max-h-24 overflow-y-auto pr-1 bg-green-50/60 p-2 rounded-lg border border-green-100/70 text-[11px] leading-relaxed" style={{ scrollbarWidth: 'thin' }}>
                                   <span className="font-extrabold text-green-700 block mb-0.5">💭 Reflection:</span> 
                                   <span className="italic text-gray-700">{item.reflectionText || 'N/A'}</span>
                                 </div>

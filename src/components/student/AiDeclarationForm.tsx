@@ -66,6 +66,21 @@ const AiDeclarationForm: React.FC<AiDeclarationFormProps> = ({
     }
     return initialData;
   });
+
+  React.useEffect(() => {
+    if (data && data.length > 0) {
+      setInteractions(prev => {
+        const newData = [...prev];
+        data.forEach(d => {
+          const idx = activeCategories.findIndex(c => c.id === d.usagePurpose);
+          if (idx !== -1) {
+            newData[idx] = { ...newData[idx], ...d };
+          }
+        });
+        return newData;
+      });
+    }
+  }, [data]);
   
   const [activeTab, setActiveTab] = useState(0);
   const scrollRef = React.useRef<HTMLDivElement>(null);

@@ -123,7 +123,19 @@ export const useMessages = (roomId: string | null, options?: { onMessageSent?: (
     setMessages(prev => [...prev, tempMessage]);
 
     try {
-      const msg = await chatService.sendMessage(targetRoomId, content);
+      const msg = await new Promise<ChatMessage>((resolve, reject) => {
+        if (!socket || !socket.connected) {
+          return reject(new Error('Socket not connected'));
+        }
+        socket.emit('chat:send_message', { roomId: targetRoomId, content, messageType: 'text' }, (response: any) => {
+          if (response.status === 'ok') {
+            resolve(response.data);
+          } else {
+            reject(new Error(response.message || 'Failed to send message via socket'));
+          }
+        });
+      });
+
       setMessages(prev => {
         const alreadyExists = prev.some(m => m._id === msg._id);
         if (alreadyExists) {
@@ -134,7 +146,7 @@ export const useMessages = (roomId: string | null, options?: { onMessageSent?: (
       options?.onMessageSent?.(msg);
     } catch (err) {
       console.error('Failed to send message:', err);
-      // Rollback
+      // Fallback to REST API if socket fails? We can just rollback
       setMessages(prev => prev.filter(m => m._id !== tempId));
     }
   }, [roomId, socket, user]);

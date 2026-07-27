@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   BrainCircuit, LayoutDashboard, BookOpen, FileCheck2, BarChart2, 
-  Newspaper, MessageCircle, Settings, X 
+  Newspaper, MessageCircle, Settings, X, LogOut 
 } from 'lucide-react';
 
 interface LecturerSidebarProps {
@@ -114,6 +114,19 @@ const LecturerSidebar: React.FC<LecturerSidebarProps> = ({
             <Settings className={`w-5 h-5 mr-4 ${location.pathname.includes('/lecturer/settings') ? 'text-[#F26F21]' : 'opacity-70'} shrink-0`} />
             {!sidebarCollapsed && <span className="whitespace-nowrap">Settings</span>}
           </Link>
+          
+          <button 
+            onClick={() => {
+              localStorage.removeItem('access_token');
+              localStorage.removeItem('refresh_token');
+              localStorage.removeItem('user');
+              window.location.href = '/login';
+            }}
+            className="flex items-center px-4 py-3 text-red-400 hover:text-red-300 hover:bg-white/5 font-medium rounded-xl transition-all relative mt-2 text-left w-full"
+          >
+            <LogOut className="w-5 h-5 mr-4 opacity-70 shrink-0" />
+            {!sidebarCollapsed && <span className="whitespace-nowrap">Logout</span>}
+          </button>
         </nav>
       </aside>
     </>

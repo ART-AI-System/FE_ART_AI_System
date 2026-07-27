@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Search, Edit, Phone, Video, MoreVertical, CheckCheck, Paperclip, Smile, Send } from 'lucide-react';
+import { Search, Edit, Phone, Video, MoreVertical, CheckCheck, Check, Paperclip, Smile, Send } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useConversations } from '../../hooks/useConversations';
 import { useMessages } from '../../hooks/useMessages';
@@ -90,11 +90,12 @@ const StudentMessagesPage = () => {
           // Create real room
           const newRoom = await chatService.createRoom([contactId], 'direct');
           
-          // Join room immediately and send message so it saves to DB
+          // Join room immediately and send message via socket
           chatSocketService.getSocket()?.emit('chat:join_room', { roomId: newRoom._id });
-          const sentMsg = await chatService.sendMessage(newRoom._id, content);
-          newRoom.lastMessage = sentMsg.content;
-          newRoom.lastMessageAt = sentMsg.createdAt;
+          sendMessage(content, newRoom._id);
+          
+          newRoom.lastMessage = content;
+          newRoom.lastMessageAt = new Date().toISOString();
           
           // Update UI state - this will trigger useMessages to fetch the newly created message
           setConversations(prev => {
@@ -342,33 +343,35 @@ const StudentMessagesPage = () => {
                     )}
                     
                     {messages.map((msg) => {
-                      const isMe = msg.senderId === user?.id;
+                      const currentUserId = String((user as any)?._id || user?.id || '');
+                      const msgSenderId = String((msg.senderId as any)?._id || msg.senderId || '');
+                      const isMe = Boolean(currentUserId && msgSenderId && currentUserId === msgSenderId);
                       const time = new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                       const isRead = msg.readBy && msg.readBy.length > 1;
 
                       if (isMe) {
                         return (
-                          <div key={msg._id} className="flex items-end justify-end">
-                            <div className="mr-3 max-w-[70%]">
-                              <div className="bg-[#4318FF] p-4 rounded-2xl rounded-br-none shadow-sm text-white">
-                                <p className="text-sm font-medium">{msg.content}</p>
+                          <div key={msg._id} className="flex justify-end max-w-[75%] ml-auto">
+                            <div className="flex flex-col items-end">
+                              <div className="bg-gradient-to-r from-[#4318FF] to-[#3B82F6] text-white px-5 py-3 rounded-2xl rounded-br-xs shadow-md shadow-blue-500/15 text-sm font-medium leading-relaxed">
+                                {msg.content}
                               </div>
-                              <span className="text-[10px] font-bold text-gray-400 mr-1 mt-1 block text-right">
-                                {time} {isRead ? <CheckCheck className="w-3 h-3 inline text-blue-500" /> : <CheckCheck className="w-3 h-3 inline text-gray-400" />}
-                              </span>
+                              <div className="flex items-center mt-1 mr-1">
+                                <span className="text-[10px] font-bold text-gray-400 mr-1.5">{time}</span>
+                                {isRead ? <CheckCheck className="w-3.5 h-3.5 text-[#4318FF]" /> : <Check className="w-3.5 h-3.5 text-gray-400" />}
+                              </div>
                             </div>
-                            <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=F26F21&color=fff`} className="w-8 h-8 rounded-full mb-1" alt="Avatar" />
                           </div>
                         );
                       } else {
                         return (
-                          <div key={msg._id} className="flex items-end">
-                            <img src={otherMember?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherMember?.fullName || 'User')}&background=EBF4FF&color=0072BC`} className="w-8 h-8 rounded-full mb-1" alt="Avatar" />
-                            <div className="ml-3 max-w-[70%]">
-                              <div className="bg-white border border-gray-100 p-4 rounded-2xl rounded-bl-none shadow-sm">
-                                <p className="text-sm font-medium text-gray-700">{msg.content}</p>
+                          <div key={msg._id} className="flex max-w-[75%] items-end space-x-3">
+                            <img src={otherMember?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherMember?.fullName || 'User')}&background=F26F21&color=fff`} className="w-8 h-8 rounded-full shrink-0 shadow-sm self-end mb-5" alt="Avatar" />
+                            <div>
+                              <div className="bg-white border border-gray-200/80 text-[#1B2559] px-5 py-3 rounded-2xl rounded-bl-xs shadow-xs text-sm font-medium leading-relaxed">
+                                {msg.content}
                               </div>
-                              <span className="text-[10px] font-bold text-gray-400 ml-1 mt-1 block">{time}</span>
+                              <span className="text-[10px] font-bold text-gray-400 mt-1 ml-1 block">{time}</span>
                             </div>
                           </div>
                         );

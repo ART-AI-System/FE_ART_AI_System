@@ -17,6 +17,9 @@ interface AiDeclarationFormProps {
   data?: AiInteractionData[];
   onChange?: (val: AiInteractionData[]) => void;
   aiDeclarationConfig?: { categoryId: string, weight: number }[];
+  aiRequired?: boolean;
+  minInteractions?: number;
+  maxInteractions?: number;
 }
 
 const CATEGORIES = [
@@ -42,7 +45,10 @@ const AiDeclarationForm: React.FC<AiDeclarationFormProps> = ({
   isSubmitting = false, 
   data, 
   onChange,
-  aiDeclarationConfig
+  aiDeclarationConfig,
+  aiRequired = false,
+  minInteractions = 0,
+  maxInteractions = 10
 }) => {
   const activeCategories = aiDeclarationConfig && aiDeclarationConfig.length > 0
     ? CATEGORIES.filter(c => aiDeclarationConfig.some(conf => conf.categoryId === c.id))
@@ -87,10 +93,10 @@ const AiDeclarationForm: React.FC<AiDeclarationFormProps> = ({
     <div className="mt-8">
       <div className="flex justify-between items-end mb-6">
         <h4 className="text-sm font-bold text-[#4318FF] uppercase tracking-wider flex items-center">
-          <Brain className="w-4 h-4 mr-2" /> Step 2: AI Declaration (Optional)
+          <Brain className="w-4 h-4 mr-2" /> Step 2: AI Declaration ({aiRequired ? 'Required' : 'Optional'})
         </h4>
         <div className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200">
-          Complete the sections where you used AI
+          {aiRequired ? `Complete ${minInteractions}-${maxInteractions} declarations` : 'Complete the sections where you used AI'}
         </div>
       </div>
       
@@ -212,6 +218,21 @@ const AiDeclarationForm: React.FC<AiDeclarationFormProps> = ({
                 if (activeTab === activeCategories.length - 1) {
                   if (handleSubmit) {
                     const filledOut = interactions.filter(item => item.promptContent.trim() !== '');
+                    const incomplete = filledOut.some(item =>
+                      !item.aiResponseSummary.trim() || !item.reflectionText.trim()
+                    );
+                    if (incomplete) {
+                      alert('Each AI declaration needs a prompt, response summary, and self-reflection.');
+                      return;
+                    }
+                    if (aiRequired && filledOut.length < minInteractions) {
+                      alert(`This assignment requires at least ${minInteractions} AI declarations.`);
+                      return;
+                    }
+                    if (maxInteractions > 0 && filledOut.length > maxInteractions) {
+                      alert(`This assignment allows at most ${maxInteractions} AI declarations.`);
+                      return;
+                    }
                     handleSubmit(filledOut);
                   }
                 } else {

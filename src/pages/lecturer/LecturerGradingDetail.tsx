@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, AlertTriangle, RefreshCcw, Save, Send, ChevronRight } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Send, ChevronRight, Sparkles } from 'lucide-react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import SubmissionFileViewer from '../../components/lecturer/SubmissionFileViewer';
 import EvaluationPanel from '../../components/lecturer/EvaluationPanel';
@@ -14,7 +14,15 @@ const LecturerGradingDetail: React.FC = () => {
   const searchParams = new URLSearchParams(location.search);
   const targetStudentId = searchParams.get('studentId') || undefined;
   
-  const [gradeData, setGradeData] = useState({ score: 0, feedback: '', reviewStatus: 'pending', reviewComment: '' });
+  const [gradeData, setGradeData] = useState({
+    score: 0,
+    feedback: '',
+    reviewStatus: 'pending',
+    reviewComment: '',
+    rubricScores: [] as Array<{ criterionId: string; name: string; score: number; maxPoints: number; comment?: string }>,
+    aiAdvisoryRunId: undefined as string | undefined,
+    lecturerAdjustmentReason: ''
+  });
   const [isPublishing, setIsPublishing] = useState(false);
   const [submission, setSubmission] = useState<any>(null);
   const [aiEvaluation, setAiEvaluation] = useState<any>(null);
@@ -62,23 +70,32 @@ const LecturerGradingDetail: React.FC = () => {
   }, [id]);
 
   const handlePublishGrade = async () => {
+    if (gradeData.reviewStatus === 'pending') {
+      alert('Please choose a lecturer review status before publishing the final grade.');
+      return;
+    }
+    if ((submission?.gradeItemId?.rubric || []).length > 0 && gradeData.rubricScores.length === 0) {
+      alert('Please score every academic rubric criterion before publishing.');
+      return;
+    }
     setIsPublishing(true);
     try {
       if (id && submission) {
-        await Promise.all([
-          gradeService.createGrade(id, { 
-            score: Number(gradeData.score), 
-            maxScore: 10, 
-            feedback: gradeData.feedback,
-            studentId: targetStudentId
-          }),
-          reviewService.createReview(id, { 
-            reviewStatus: gradeData.reviewStatus as 'pending' | 'reviewed' | 'needs_revision' | 'flagged', 
-            comment: gradeData.reviewComment 
-          })
-        ]);
+        await reviewService.createReview(id, {
+          reviewStatus: gradeData.reviewStatus as 'pending' | 'reviewed' | 'needs_revision' | 'flagged',
+          comment: gradeData.reviewComment
+        });
+        await gradeService.createGrade(id, {
+          score: Number(gradeData.score),
+          maxScore: submission?.gradeItemId?.maxScore || 10,
+          feedback: gradeData.feedback,
+          studentId: targetStudentId,
+          rubricScores: gradeData.rubricScores,
+          aiAdvisoryRunId: gradeData.aiAdvisoryRunId,
+          lecturerAdjustmentReason: gradeData.lecturerAdjustmentReason
+        });
       }
-      alert('Grade and Review published successfully');
+      alert('Your lecturer-authored grade and review were published successfully.');
       navigate(-1);
     } catch (err) {
       console.error('Failed to publish grade', err);
@@ -88,8 +105,8 @@ const LecturerGradingDetail: React.FC = () => {
     }
   };
 
-  const isFlagged = aiEvaluation?.flagStatus === 'FLAGGED' || (aiEvaluation?.aiMatchPercentage && aiEvaluation.aiMatchPercentage > 80);
-  const matchPct = aiEvaluation?.aiMatchPercentage || 95;
+  const isFlagged = aiEvaluation?.riskLevel === 'high';
+  const dependencyScore = aiEvaluation?.aiDependencyScore;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 font-inter animate-fade-in absolute inset-0 z-50">
@@ -114,23 +131,22 @@ const LecturerGradingDetail: React.FC = () => {
           {isFlagged ? (
             <div className="ml-6 px-3 py-1 bg-red-500/20 border border-red-500/50 rounded-full flex items-center">
               <AlertTriangle className="w-3 h-3 text-red-400 mr-2" />
-              <span className="text-xs font-bold text-red-200">High Discrepancy Detected ({matchPct}% AI vs Declared)</span>
+              <span className="text-xs font-bold text-red-200">High AI-transparency risk ({dependencyScore ?? 'N/A'} dependency score)</span>
             </div>
           ) : (
             <div className="ml-6 px-3 py-1 bg-green-500/20 border border-green-500/50 rounded-full flex items-center">
               <span className="w-2 h-2 rounded-full bg-green-400 mr-2"></span>
-              <span className="text-xs font-bold text-green-200">Normal AI Assessment ({matchPct || 15}% AI Match)</span>
+              <span className="text-xs font-bold text-green-200">
+                {aiEvaluation ? `${aiEvaluation.riskLevel || 'low'} AI-transparency risk` : 'AI transparency not evaluated'}
+              </span>
             </div>
           )}
         </div>
         
         <div className="flex items-center space-x-3">
-          <button className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-lg hover:bg-red-100 transition-all flex items-center">
-            <RefreshCcw className="w-4 h-4 mr-2" /> Request Resubmit
-          </button>
-          <button className="px-4 py-2 bg-white/10 text-white border border-white/20 text-xs font-bold rounded-lg hover:bg-white/20 transition-all flex items-center">
-            <Save className="w-4 h-4 mr-2" /> Save Draft
-          </button>
+          <span className="hidden lg:inline-flex items-center px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-xs font-bold text-blue-100">
+            <Sparkles className="w-4 h-4 mr-2" /> AI suggests; lecturer decides and publishes
+          </span>
           <button 
             onClick={handlePublishGrade}
             disabled={isPublishing}
@@ -147,7 +163,13 @@ const LecturerGradingDetail: React.FC = () => {
         <SubmissionFileViewer submissionId={id || ''} submissionInfo={submission} />
 
         {/* RIGHT PANE: EVALUATION PANEL */}
-        <EvaluationPanel submissionId={id || ''} aiEvaluation={aiEvaluation} onChange={(data) => setGradeData(data)} />
+        <EvaluationPanel
+          submissionId={id || ''}
+          aiEvaluation={aiEvaluation}
+          maxScore={submission?.gradeItemId?.maxScore || 10}
+          rubric={submission?.gradeItemId?.rubric || []}
+          onChange={(data) => setGradeData(data)}
+        />
       </div>
     </div>
   );

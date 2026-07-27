@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, FileCheck2, AlertTriangle, BrainCircuit, ChevronRight, Download, BarChart2 } from 'lucide-react';
+import { Users, FileCheck2, AlertTriangle, BrainCircuit, ChevronRight, Download, BarChart2, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { analyticsService } from '../../services/analytics.service';
 import { reportService, downloadBlob } from '../../services/report.service';
@@ -13,6 +13,7 @@ const LecturerDashboard = () => {
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [submissionStats, setSubmissionStats] = useState<any>(null);
   const [aiStats, setAiStats] = useState<any>(null);
+  const [classOverview, setClassOverview] = useState<any>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -38,12 +39,14 @@ const LecturerDashboard = () => {
       if (!selectedClassId) return;
       setLoadingStats(true);
       try {
-        const [subStats, ai] = await Promise.all([
+        const [subStats, ai, overview] = await Promise.all([
           analyticsService.getSubmissionStatistics(selectedClassId).catch(() => null),
-          analyticsService.getAiStatistics(selectedClassId).catch(() => null)
+          analyticsService.getAiStatistics(selectedClassId).catch(() => null),
+          analyticsService.getClassOverview(selectedClassId).catch(() => null)
         ]);
         setSubmissionStats(subStats);
         setAiStats(ai);
+        setClassOverview(overview);
       } catch (error) {
         console.error('Failed to load class stats:', error);
       } finally {
@@ -77,16 +80,17 @@ const LecturerDashboard = () => {
 
   const classes = data?.classes ?? [];
   const totalStudents = classes.reduce((sum: number, cls: any) => sum + (cls.totalStudents || 0), 0);
-  const pendingReviews = submissionStats?.pendingReviews ?? 12; // fallback to hardcoded if not provided by backend yet
-  const flaggedSubmissions = aiStats?.flaggedSubmissions ?? 3;
+  const pendingReviews = submissionStats?.pendingReviews ?? classOverview?.pendingReviews ?? 0;
+  const flaggedSubmissions = aiStats?.flaggedSubmissions ?? classOverview?.flaggedSubmissions ?? 0;
   const averageScore = submissionStats?.averageScore ?? 0;
 
   // Transform data for charts safely
-  const rawSubChart = submissionStats?.statusDistribution ?? { draft: 0, submitted: 0, late: 0 };
+  const rawSubChart = submissionStats?.statusDistribution ?? { draft: 0, submitted: 0, late: 0, graded: 0 };
   const subChartData = [
     { name: 'Draft', count: rawSubChart.draft ?? 0 },
     { name: 'Submitted', count: rawSubChart.submitted ?? 0 },
-    { name: 'Late', count: rawSubChart.late ?? 0 }
+    { name: 'Late', count: rawSubChart.late ?? 0 },
+    { name: 'Graded', count: rawSubChart.graded ?? 0 }
   ];
 
   const rawAiChart = aiStats?.usageDistribution ?? { low: 0, medium: 0, high: 0 };
@@ -229,6 +233,66 @@ const LecturerDashboard = () => {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-extrabold text-[#1B2559]">Recent student submissions</h2>
+            <p className="text-sm text-gray-500 mt-1">Live submission, grading, and AI-risk data for the selected class.</p>
+          </div>
+          <Link to={selectedClassId ? `/lecturer/grading/${selectedClassId}` : '/lecturer/grading'} className="text-sm font-bold text-[#4318FF] hover:underline">
+            Open grading queue
+          </Link>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+              <tr>
+                <th className="px-6 py-3">Student</th>
+                <th className="px-6 py-3">Assignment</th>
+                <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3">AI risk</th>
+                <th className="px-6 py-3">Published grade</th>
+                <th className="px-6 py-3 text-right">Review</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {(classOverview?.recentSubmissions || []).map((submission: any) => (
+                <tr key={submission.submissionId} className="hover:bg-gray-50/70">
+                  <td className="px-6 py-4">
+                    <p className="font-bold text-[#1B2559]">{submission.studentName}</p>
+                    <p className="text-xs text-gray-500">{submission.studentCode}</p>
+                  </td>
+                  <td className="px-6 py-4 text-sm font-medium text-gray-700">{submission.assignmentTitle}</td>
+                  <td className="px-6 py-4">
+                    <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold uppercase">{submission.status}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${
+                      submission.riskLevel === 'high' ? 'bg-red-50 text-red-700' :
+                      submission.riskLevel === 'medium' ? 'bg-yellow-50 text-yellow-700' :
+                      submission.riskLevel === 'low' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {submission.riskLevel}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 font-black text-[#1B2559]">
+                    {submission.score == null ? 'Awaiting lecturer' : `${submission.score} / ${submission.maxScore}`}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <Link to={`/lecturer/grading/detail/${submission.submissionId}`} className="inline-flex items-center text-sm font-bold text-[#4318FF] hover:underline">
+                      <Eye className="w-4 h-4 mr-1" /> Open
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+              {!loadingStats && (classOverview?.recentSubmissions || []).length === 0 && (
+                <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500">No submissions are available for this class yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Classes List */}

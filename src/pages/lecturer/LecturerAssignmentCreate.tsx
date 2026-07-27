@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   ArrowLeft, Info, Users, Calendar, Settings2, CheckCircle, BrainCircuit,
-  Upload, Trash2, Download, FileText
+  Upload, Trash2, Download, FileText, Plus
 } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
@@ -24,6 +24,11 @@ const LecturerAssignmentCreate = () => {
   const [deadline, setDeadline] = useState('');
   const [weight, setWeight] = useState(10);
   const [maxScore, setMaxScore] = useState(10);
+  const [rubric, setRubric] = useState([
+    { id: 'requirements', name: 'Đáp ứng yêu cầu đề bài', description: 'Mức độ hoàn thành đúng và đủ các yêu cầu chức năng.', maxPoints: 4, evidenceRequirements: ['Chỉ ra chức năng/file đáp ứng yêu cầu'] },
+    { id: 'correctness', name: 'Tính đúng đắn và xử lý biên', description: 'Logic chính xác, kiểm tra đầu vào và xử lý lỗi phù hợp.', maxPoints: 4, evidenceRequirements: ['Dẫn chứng logic hoặc test liên quan'] },
+    { id: 'code-quality', name: 'Chất lượng mã nguồn', description: 'Cấu trúc, khả năng đọc, bảo trì và tài liệu.', maxPoints: 2, evidenceRequirements: ['Dẫn chứng từ cấu trúc hoặc mã nguồn'] }
+  ]);
   const [aiInteractionRequired, setAiInteractionRequired] = useState(true);
   const [minAiInteractions, setMinAiInteractions] = useState(5);
   const [maxAiInteractions, setMaxAiInteractions] = useState(10);
@@ -72,6 +77,7 @@ const LecturerAssignmentCreate = () => {
             }
             setWeight(item.weight || 10);
             setMaxScore(item.maxScore || 10);
+            setRubric(Array.isArray(item.rubric) ? item.rubric : []);
             setAiInteractionRequired(item.aiInteractionRequired !== false);
             setMinAiInteractions(item.minAiInteractions || 5);
             setMaxAiInteractions(item.maxAiInteractions || 10);
@@ -176,6 +182,24 @@ const LecturerAssignmentCreate = () => {
       setError('Deadline is required.');
       return;
     }
+
+    if (rubric.length === 0) {
+      setError('At least one academic rubric criterion is required for AI-assisted grading.');
+      return;
+    }
+    const rubricTotal = rubric.reduce((sum, criterion) => sum + Number(criterion.maxPoints || 0), 0);
+    if (Math.abs(rubricTotal - Number(maxScore)) > 0.001) {
+      setError(`Rubric maximum points must equal Max Score. Current rubric total: ${rubricTotal}`);
+      return;
+    }
+    if (rubric.some(criterion => !criterion.id.trim() || !criterion.name.trim() || !criterion.description.trim() || criterion.maxPoints <= 0)) {
+      setError('Every rubric criterion requires a unique id, name, description and positive maximum points.');
+      return;
+    }
+    if (new Set(rubric.map(criterion => criterion.id.trim())).size !== rubric.length) {
+      setError('Rubric criterion ids must be unique.');
+      return;
+    }
     
     const selectedConfig = aiDeclarationConfig.filter(c => c.selected);
     if (selectedConfig.length === 0) {
@@ -196,6 +220,14 @@ const LecturerAssignmentCreate = () => {
       description,
       weight: Number(weight),
       maxScore: Number(maxScore),
+      rubric: rubric.map(criterion => ({
+        ...criterion,
+        id: criterion.id.trim(),
+        name: criterion.name.trim(),
+        description: criterion.description.trim(),
+        maxPoints: Number(criterion.maxPoints),
+        evidenceRequirements: criterion.evidenceRequirements.map(value => value.trim()).filter(Boolean)
+      })),
       deadline: new Date(deadline).toISOString(),
       aiInteractionRequired,
       minAiInteractions: Number(minAiInteractions),
@@ -301,6 +333,65 @@ const LecturerAssignmentCreate = () => {
                     />
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Academic Rubric */}
+            <div className="bg-white rounded-[24px] p-8 border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-lg font-extrabold text-[#1B2559] flex items-center">
+                    <FileText className="w-5 h-5 mr-2 text-[#4318FF]" /> Academic Rubric
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-1">AI chỉ được đề xuất điểm theo đúng các tiêu chí này.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRubric(current => [...current, {
+                    id: `criterion-${current.length + 1}`,
+                    name: '',
+                    description: '',
+                    maxPoints: 1,
+                    evidenceRequirements: []
+                  }])}
+                  className="inline-flex items-center px-3 py-2 rounded-xl bg-indigo-50 text-[#4318FF] text-xs font-bold hover:bg-indigo-100"
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add criterion
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {rubric.map((criterion, index) => (
+                  <div key={`${criterion.id}-${index}`} className="p-4 rounded-2xl border border-gray-200 bg-gray-50/60 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr_110px_40px] gap-3 items-end">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">Criterion ID</label>
+                        <input value={criterion.id} onChange={event => setRubric(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, id: event.target.value } : item))} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">Name</label>
+                        <input value={criterion.name} onChange={event => setRubric(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">Max points</label>
+                        <input type="number" min="0.1" step="0.1" value={criterion.maxPoints} onChange={event => setRubric(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, maxPoints: Number(event.target.value) } : item))} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <button type="button" onClick={() => setRubric(current => current.filter((_, itemIndex) => itemIndex !== index))} className="p-2 text-gray-400 hover:text-red-500" title="Remove criterion">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <textarea rows={2} value={criterion.description} onChange={event => setRubric(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item))} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="Mô tả rõ điều kiện đạt điểm của tiêu chí..." />
+                    <input
+                      value={criterion.evidenceRequirements.join('; ')}
+                      onChange={event => setRubric(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, evidenceRequirements: event.target.value.split(';') } : item))}
+                      className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      placeholder="Evidence requirements, separated by semicolons"
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className={`mt-4 text-sm font-bold text-right ${Math.abs(rubric.reduce((sum, item) => sum + Number(item.maxPoints || 0), 0) - maxScore) < 0.001 ? 'text-green-600' : 'text-red-600'}`}>
+                Rubric total: {rubric.reduce((sum, item) => sum + Number(item.maxPoints || 0), 0)} / {maxScore}
               </div>
             </div>
 

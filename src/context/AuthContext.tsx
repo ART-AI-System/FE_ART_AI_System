@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import axiosClient from '../api/axiosClient';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { preloadConversations, clearConversationsCache } from '../hooks/useConversations';
+import { chatSocketService } from '../services/chat.socket';
 
 interface User {
   id: string;
@@ -67,6 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Logout failed on backend:', error);
     } finally {
+      chatSocketService.disconnect();
       clearConversationsCache();
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');

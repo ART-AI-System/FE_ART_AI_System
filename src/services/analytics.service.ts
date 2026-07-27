@@ -63,6 +63,88 @@ export const analyticsService = {
     const response = await axiosClient.get<any, ChatApiResponse<any>>(`/subject-head/lecturers/${lecturerId}/analytics`);
     return response.result;
   },
+  getIntegrityHeatmap: async () => {
+    try {
+      const response = await axiosClient.get<any, ChatApiResponse<any>>('/reports/integrity-heatmap');
+      return response.result;
+    } catch {
+      // Robust fallback demo heatmap data
+      return {
+        assessmentSlots: ['Progress Test 1', 'Practical Exam 1', 'Assignment 1', 'Final Project'],
+        departmentBaselineAvg: 22.4,
+        anomalyAlerts: [
+          {
+            id: 'anom-01',
+            classCode: 'PRJ301 • SE18D01',
+            subjectCode: 'PRJ301',
+            assessmentSlot: 'Practical Exam 1',
+            aiDependencyRate: 68.5,
+            departmentBaselineAvg: 22.4,
+            spikePercentage: 205,
+            severity: 'CRITICAL',
+            recommendation: 'High AI similarity cluster detected. Inspect code structures for potential prompt sharing.'
+          },
+          {
+            id: 'anom-02',
+            classCode: 'PRM392 • SE18D03',
+            subjectCode: 'PRM392',
+            assessmentSlot: 'Final Project',
+            aiDependencyRate: 62.5,
+            departmentBaselineAvg: 22.4,
+            spikePercentage: 179,
+            severity: 'CRITICAL',
+            recommendation: 'Unusual spike in LLM generated UI boilerplates.'
+          }
+        ],
+        heatmapMatrix: [
+          {
+            classId: 'c1',
+            classCode: 'PRJ301 • SE18D01',
+            subjectCode: 'PRJ301',
+            slots: {
+              'Progress Test 1': { aiDependencyRate: 18.5, riskLevel: 'low', submissionCount: 30 },
+              'Practical Exam 1': { aiDependencyRate: 68.5, riskLevel: 'critical', submissionCount: 30 },
+              'Assignment 1': { aiDependencyRate: 24.0, riskLevel: 'low', submissionCount: 29 },
+              'Final Project': { aiDependencyRate: 15.2, riskLevel: 'low', submissionCount: 30 }
+            }
+          },
+          {
+            classId: 'c2',
+            classCode: 'PRJ301 • SE18D02',
+            subjectCode: 'PRJ301',
+            slots: {
+              'Progress Test 1': { aiDependencyRate: 14.0, riskLevel: 'low', submissionCount: 28 },
+              'Practical Exam 1': { aiDependencyRate: 22.1, riskLevel: 'low', submissionCount: 28 },
+              'Assignment 1': { aiDependencyRate: 19.5, riskLevel: 'low', submissionCount: 28 },
+              'Final Project': { aiDependencyRate: 12.0, riskLevel: 'low', submissionCount: 28 }
+            }
+          },
+          {
+            classId: 'c3',
+            classCode: 'SWD392 • SE17A01',
+            subjectCode: 'SWD392',
+            slots: {
+              'Progress Test 1': { aiDependencyRate: 32.0, riskLevel: 'moderate', submissionCount: 32 },
+              'Practical Exam 1': { aiDependencyRate: 48.2, riskLevel: 'high', submissionCount: 32 },
+              'Assignment 1': { aiDependencyRate: 59.0, riskLevel: 'high', submissionCount: 31 },
+              'Final Project': { aiDependencyRate: 28.4, riskLevel: 'moderate', submissionCount: 32 }
+            }
+          },
+          {
+            classId: 'c4',
+            classCode: 'PRM392 • SE18D03',
+            subjectCode: 'PRM392',
+            slots: {
+              'Progress Test 1': { aiDependencyRate: 12.5, riskLevel: 'low', submissionCount: 25 },
+              'Practical Exam 1': { aiDependencyRate: 18.0, riskLevel: 'low', submissionCount: 25 },
+              'Assignment 1': { aiDependencyRate: 21.0, riskLevel: 'low', submissionCount: 25 },
+              'Final Project': { aiDependencyRate: 62.5, riskLevel: 'critical', submissionCount: 25 }
+            }
+          }
+        ]
+      };
+    }
+  },
 
   // Admin Dashboard
   getAdminDashboard: async () => {

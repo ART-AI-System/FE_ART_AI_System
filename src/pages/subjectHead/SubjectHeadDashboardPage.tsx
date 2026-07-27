@@ -6,6 +6,7 @@ import { Card } from '../../components/common/Card';
 import { analyticsService } from '../../services/analytics.service';
 import { reportService, downloadBlob } from '../../services/report.service';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
+import { AiIntegrityHeatmap } from '../../components/analytics/AiIntegrityHeatmap';
 
 const SubjectHeadDashboardPage = () => {
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -183,6 +184,9 @@ const SubjectHeadDashboardPage = () => {
           </div>
         </Card>
       </div>
+
+      {/* AI Integrity Radar & Heatmap Section */}
+      <AiIntegrityHeatmap />
 
       {/* Action Items */}
       <div className="grid grid-cols-1 gap-8">
